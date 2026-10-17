@@ -141,6 +141,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 4 | Dashboard for admin and viewers: progress, overdue ageing, business, verification pending, branches, types, officers, follow-ups, photos, WhatsApp nudges, summary image, Excel | None |
 | 5 | Summary image lists every branch with totals and a due-tomorrow column; swipe between sections; back button steps back and asks before closing | None |
 | 6 | Pull down refreshes the current tab in place; reopening or reloading keeps your tab and section | None |
+| 7 | Sections slide as one continuous strip that follows your finger, with neighbours preloaded | None |
 
 ---
 

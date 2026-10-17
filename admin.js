@@ -1,24 +1,21 @@
 /* Daura · Admin tab: people and their Gmails, roles, blocking; verifying visits; the requests queue;
    the staff list (udairo.js upload) and photo storage; the activity feed. The dashboard arrives next. */
 
+const admPane = id => $(`#main .pane[data-pane="${id}"]`) || document.createElement('div');
+
 async function viewAdmin() {
   if (!S.who.admin) { $('#main').innerHTML = '<div class="empty">Admins only.</div>'; return; }
-  const seg = S.cache.adminSeg || 'people';
-  S.cache.adminSeg = seg; remember();
-  const segs = [['people', 'People'], ['verify', 'Verify'], ['requests', 'Requests'], ['staff', 'Staff list'], ['activity', 'Activity']];
-  $('#main').innerHTML = `${S.updateReady ? updateBar() : ''}<div class="seg seg-scroll">${segs.map(([k, l]) =>
-      `<button data-seg="${k}" class="${seg === k ? 'on' : ''}">${l}<span class="segn" id="an-${k}"></span></button>`).join('')}</div>
-    <div id="adm"><div class="spin"></div></div>`;
+  await loadBasics();
+  const panes = [
+    { id: 'people', label: 'People', badge: 'an-people', draw: () => admPeople() },
+    { id: 'verify', label: 'Verify', badge: 'an-verify', draw: () => admVerify() },
+    { id: 'requests', label: 'Requests', badge: 'an-requests', draw: () => admRequests() },
+    { id: 'staff', label: 'Staff list', badge: 'an-staff', draw: () => admStaff() },
+    { id: 'activity', label: 'Activity', badge: 'an-activity', draw: () => admActivity() }
+  ];
+  $('#main').innerHTML = `${S.updateReady ? updateBar() : ''}<div id="adm-host"></div>`;
   bindUpdate();
-  $$('[data-seg]').forEach(b => b.onclick = () => { S.cache.adminSeg = b.dataset.seg; viewAdmin(); });
-  try {
-    await loadBasics();
-    if (seg === 'people') await admPeople();
-    else if (seg === 'verify') await admVerify();
-    else if (seg === 'requests') await admRequests();
-    else if (seg === 'staff') await admStaff();
-    else await admActivity();
-  } catch (e) { $('#adm').innerHTML = `<div class="empty"><p>${esc(errText(e))}</p></div>`; }
+  mountPager($('#adm-host'), panes, S.cache.adminSeg || 'people', id => { S.cache.adminSeg = id; remember(); });
   adminBadges();
 }
 
@@ -43,7 +40,7 @@ async function admVerify() {
   const needs = v => ro.has(v.visitor_branch) || (S.dir.get(v.visitor) || {}).is_branch_head;
   const f = S.cache.avf || 'needs';
   const list = f === 'needs' ? rows.filter(needs) : rows;
-  $('#adm').innerHTML = `<div class="chips">
+  admPane('verify').innerHTML = `<div class="chips">
       <button class="chip ${f === 'needs' ? 'on' : ''}" data-avf="needs">Needs you<b>${rows.filter(needs).length}</b></button>
       <button class="chip ${f === 'all' ? 'on' : ''}" data-avf="all">All unverified<b>${rows.length}</b></button></div>
     <p class="hint">Branch heads verify their own staff. Visits by branch heads and RO staff come to you. You can verify any visit.</p>
@@ -53,7 +50,7 @@ async function admVerify() {
           <div class="s">${esc(personName(v.visitor))} · ${esc(bname.get(v.visitor_branch) || '')} · ${fmtDateTime(v.visited_at)}</div></div>
         <span class="chev">${ICON.chev}</span></button>`).join('')}</div>` : `<div class="empty">${ICON.shield}<p>Nothing waiting.</p></div>`}`;
   $$('[data-avf]').forEach(b => b.onclick = () => { S.cache.avf = b.dataset.avf; admVerify(); });
-  $$('#adm [data-v]').forEach(b => b.onclick = () => openVisit(b.dataset.v));
+  $$('[data-v]', admPane('verify')).forEach(b => b.onclick = () => openVisit(b.dataset.v));
 }
 
 /* ───────── Requests (admin) ───────── */
@@ -65,7 +62,7 @@ async function admRequests() {
     q(sb.from('requests').select(sel).eq('status', 'pending').order('created_at')),
     q(sb.from('requests').select(sel).neq('status', 'pending').order('decided_at', { ascending: false }).limit(20))]);
   const target = r => r.visit ? `${esc(r.visit.entity.name)} · Visit ${r.visit.visit_no}` : r.assignment ? `${esc(r.assignment.entity.name)} · scheduled ${fmtDate(r.assignment.scheduled_on)}` : '<i>no longer exists</i>';
-  $('#adm').innerHTML = `
+  admPane('requests').innerHTML = `
     ${pending.length ? pending.map(r => `<div class="card">
         <div class="row"><span class="badge warn">${RQ_LABEL[r.kind]}</span><span class="grow"></span><span class="hint">${ago(r.created_at)}</span></div>
         <h3 style="margin-top:10px">${target(r)}</h3>
@@ -83,7 +80,7 @@ async function admRequests() {
     ${done.length ? `<h2>Recently decided</h2><div class="list">${done.map(r => `<div class="item" style="cursor:default"><div class="grow">
         <div class="t">${RQ_LABEL[r.kind]}</div><div class="s">${target(r)} · ${esc(personName(r.raised_by))}${r.decision_note ? ' · ' + esc(r.decision_note) : ''}</div></div>
         <span class="badge ${r.status === 'approved' ? 'ok' : ''}">${r.status === 'approved' ? 'Approved' : 'Declined'}</span></div>`).join('')}</div>` : ''}`;
-  $$('#adm [data-open]').forEach(b => b.onclick = () => openVisit(b.dataset.open));
+  $$('[data-open]', admPane('requests')).forEach(b => b.onclick = () => openVisit(b.dataset.open));
   const decide = async (id, approve) => {
     const r = pending.find(x => x.id === id);
     const note = ($('#nt-' + id) || {}).value || null;
@@ -98,8 +95,8 @@ async function admRequests() {
       toast(approve ? 'Approved' : 'Declined'); admRequests(); adminBadges();
     } catch (e) { toast(errText(e)); }
   };
-  $$('#adm [data-ok]').forEach(b => b.onclick = () => decide(b.dataset.ok, true));
-  $$('#adm [data-dec]').forEach(b => b.onclick = () => decide(b.dataset.dec, false));
+  $$('[data-ok]', admPane('requests')).forEach(b => b.onclick = () => decide(b.dataset.ok, true));
+  $$('[data-dec]', admPane('requests')).forEach(b => b.onclick = () => decide(b.dataset.dec, false));
 }
 
 /* ───────── People ───────── */
@@ -118,7 +115,7 @@ async function admPeople(fresh = true) {
     blocked: ['Blocked', all.filter(p => p.blocked)],
     inactive: ['Inactive', all.filter(p => !p.active)]
   };
-  $('#adm').innerHTML = `
+  admPane('people').innerHTML = `
     <div class="stats">
       <div class="stat ok"><b>${linked.length}</b><span>Signed up</span></div>
       <div class="stat"><b>${act.length - linked.length}</b><span>Not yet</span></div>
@@ -218,7 +215,7 @@ async function admStaff() {
   const people = S.cache.people || await rpc('admin_people');
   S.cache.people = people;
   const act = people.filter(p => p.active);
-  $('#adm').innerHTML = `
+  admPane('staff').innerHTML = `
     <div class="card"><h3>Staff list</h3>
       <p class="muted">${act.length} staff in ${new Set(act.map(p => p.branch_code)).size} branches. Upload the latest <span class="mono">udairo.js</span> after transfers or postings. Matching is by Emp ID: changes are updated, new people added, and anyone missing is marked inactive (their visits stay).</p>
       <input type="file" id="uf" accept=".js,text/javascript,application/javascript" hidden>
@@ -286,7 +283,7 @@ const ACT = {
 };
 async function admActivity() {
   const rows = await rpc('admin_activity', { p_limit: 150 });
-  $('#adm').innerHTML = rows.length ? `<div class="list">${rows.map(a => {
+  admPane('activity').innerHTML = rows.length ? `<div class="list">${rows.map(a => {
     const who = a.actor ? cleanName(a.actor) : (a.actor_gmail || 'Setup');
     const what = (ACT[a.action] || (() => esc(a.action)))(a);
     const bad = a.action === 'claim_failed' || a.action === 'person_blocked';

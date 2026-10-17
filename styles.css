@@ -220,3 +220,9 @@ html,body{overscroll-behavior-y:contain}
   box-shadow:var(--shadow);display:grid;place-items:center;z-index:9;opacity:0;transform:translateY(-30px);pointer-events:none;color:var(--accent)}
 #ptr svg{width:20px;height:20px}
 #ptr.spin svg{animation:rot .7s linear infinite}
+
+/* Sections strip (v7) */
+.pager{overflow:hidden;touch-action:pan-y;margin:0 -16px;padding:0}
+.track{display:flex;will-change:transform}
+.pane{flex:0 0 100%;min-width:0;padding:0 16px;box-sizing:border-box}
+.pane.off{height:0;overflow:hidden}

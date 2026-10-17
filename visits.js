@@ -7,24 +7,16 @@ async function viewVisits() {
     main.innerHTML = `<div class="empty">${ICON.shield}<p>You are signed in as admin without a staff profile.<br>Open the <b>Admin</b> tab.</p></div>`;
     return;
   }
-  const segs = [['todo', 'To do'], ['mine', 'My visits'], ['places', 'Places']];
-  if (me.is_branch_head) segs.push(['verify', 'Verify']);
-  const seg = segs.some(s => s[0] === S.cache.vseg) ? S.cache.vseg : 'todo';
-  S.cache.vseg = seg; remember();
-  main.innerHTML = `${S.updateReady ? updateBar() : ''}<div class="seg" id="vseg">${segs.map(([k, l]) => `<button data-vs="${k}" class="${seg === k ? 'on' : ''}">${l}<span class="segn" id="vn-${k}"></span></button>`).join('')}</div><div id="vbody"><div class="spin"></div></div>`;
+  const panes = [
+    { id: 'todo', label: 'To do', badge: 'vn-todo', draw: el => drawTodo(el) },
+    { id: 'mine', label: 'My visits', badge: 'vn-mine', draw: el => drawMine(el) },
+    { id: 'places', label: 'Places', badge: 'vn-places', draw: el => drawPlaces(el) }
+  ];
+  if (me.is_branch_head) panes.push({ id: 'verify', label: 'Verify', badge: 'vn-verify', draw: el => drawVerify(el) });
+  main.innerHTML = `${S.updateReady ? updateBar() : ''}<div id="v-host"></div>`;
   bindUpdate();
-  $$('[data-vs]').forEach(b => b.onclick = () => { S.cache.vseg = b.dataset.vs; viewVisits(); });
-  const el = $('#vbody');
-  try {
-    await loadBasics();
-    if (seg === 'todo') await drawTodo(el);
-    else if (seg === 'mine') await drawMine(el);
-    else if (seg === 'places') await drawPlaces(el);
-    else await drawVerify(el);
-  } catch (e) {
-    el.innerHTML = `<div class="empty"><p>${esc(errText(e))}</p><button class="btn" id="rt">Try again</button></div>`;
-    $('#rt').onclick = viewVisits;
-  }
+  try { await loadBasics(); } catch (e) { /* each section shows its own error */ }
+  mountPager($('#v-host'), panes, S.cache.vseg || 'todo', id => { S.cache.vseg = id; remember(); });
   countBadges();
 }
 
@@ -44,6 +36,12 @@ async function countBadges() {
 
 /* ───────── To do ───────── */
 async function loadMyWork() {
+  if (S.cache.mw && Date.now() - S.cache.mw.at < 5000) return S.cache.mw.p;
+  const p = loadMyWorkNow(); S.cache.mw = { at: Date.now(), p };
+  p.catch(() => { S.cache.mw = null; });
+  return p;
+}
+async function loadMyWorkNow() {
   const me = S.who.me;
   const [asg, vis] = await Promise.all([
     q(sb.from('assignments').select('id, scheduled_on, status, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)')
