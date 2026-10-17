@@ -143,6 +143,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 6 | Pull down refreshes the current tab in place; reopening or reloading keeps your tab and section | None |
 | 7 | Sections slide as one continuous strip that follows your finger, with neighbours preloaded | None |
 | 8 | Sections fill the screen (swipe anywhere); clear empty states with next steps | None |
+| 10 | Rolled back version 9 (allotted-to list, staff summary panel, pull panels down to close). Same as version 8 | None |
 
 ---
 
