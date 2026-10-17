@@ -28,6 +28,7 @@ const ICON = {
   logout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5M5 12h11"/></svg>',
   upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>',
   wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3a.5.5 0 0 0 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.7-1.2 2.2 2.2 0 0 0 .2-1.2c-.1-.1-.3-.2-.5-.3z"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>'
@@ -57,7 +58,8 @@ const ERR = {
   BAD_FILE: 'That file does not look like udairo.js.',
   CANNOT_BLOCK_SELF: 'You cannot block yourself.',
   REASON_REQUIRED: 'Please give a reason.',
-  ALREADY_REQUESTED: 'A request for this is already waiting with the admin.'
+  ALREADY_REQUESTED: 'A request for this is already waiting with the admin.',
+  ALLOTMENT_ON_HOLD: 'Your request about this visit is waiting for the admin. You can log it once the admin decides.'
 };
 function errText(e) {
   if (!e) return 'Something went wrong.';
@@ -86,12 +88,52 @@ function openSheet(title, html, onClose) {
   const wrap = document.createElement('div');
   wrap.className = 'scrim';
   wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="grab" aria-hidden="true"><i></i></div>
     <div class="sheet-head"><h3>${esc(title)}</h3><button class="x" data-close aria-label="Close">${ICON.x}</button></div>
     <div class="sheet-body">${html}</div></div>`;
   wrap.addEventListener('click', e => { if (e.target === wrap || e.target.closest('[data-close]')) closeSheet(); });
   wrap._onClose = onClose;
   $('#layer').appendChild(wrap);
+  dragToClose(wrap);
   return $('.sheet-body', wrap);
+}
+
+/* Pull a panel down to close it: from the handle or header anytime, or from the content when it is scrolled to the top. */
+function dragToClose(wrap) {
+  const sheet = $('.sheet', wrap), body = $('.sheet-body', wrap);
+  let sy = 0, sx = 0, dy = 0, t0 = 0, on = false, lock = null;
+  wrap.addEventListener('touchstart', e => {
+    const t = e.target;
+    on = e.touches.length === 1 && !!t.closest('.sheet') && !t.closest('input, textarea, select, .chips, .tbl')
+      && (!!t.closest('.grab, .sheet-head') || body.scrollTop <= 0);
+    if (!on) return;
+    sy = e.touches[0].clientY; sx = e.touches[0].clientX; dy = 0; t0 = performance.now(); lock = null;
+  }, { passive: true });
+  wrap.addEventListener('touchmove', e => {
+    if (!on) return;
+    const y = e.touches[0].clientY - sy, x = e.touches[0].clientX - sx;
+    if (!lock && (Math.abs(y) > 6 || Math.abs(x) > 6)) lock = (y > 0 && Math.abs(y) > Math.abs(x)) ? 'down' : 'no';
+    if (lock !== 'down') return;
+    if (body.scrollTop > 0 && !e.target.closest('.grab, .sheet-head')) { on = false; return; }
+    dy = Math.max(0, y);
+    sheet.style.transition = 'none'; sheet.style.transform = `translateY(${dy}px)`;
+    wrap.style.background = `rgba(10,16,26,${0.45 * Math.max(0, 1 - dy / 500)})`;
+  }, { passive: true });
+  const end = () => {
+    if (!on) return; on = false;
+    if (lock !== 'down') return;
+    const v = dy / Math.max(1, performance.now() - t0);
+    if (dy > 110 || (dy > 30 && v > 0.5)) {
+      sheet.style.transition = 'transform .2s ease-in'; sheet.style.transform = 'translateY(100%)';
+      wrap.style.transition = 'background .2s'; wrap.style.background = 'rgba(10,16,26,0)';
+      setTimeout(() => { if (wrap.isConnected) closeSheet(); }, 190);
+    } else {
+      sheet.style.transition = 'transform .22s cubic-bezier(.2,.85,.25,1)'; sheet.style.transform = '';
+      wrap.style.background = '';
+    }
+  };
+  wrap.addEventListener('touchend', end, { passive: true });
+  wrap.addEventListener('touchcancel', end, { passive: true });
 }
 function closeSheet() {
   const w = $('#layer .scrim'); if (!w) return;

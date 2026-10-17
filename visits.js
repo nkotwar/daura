@@ -43,23 +43,26 @@ async function loadMyWork() {
 }
 async function loadMyWorkNow() {
   const me = S.who.me;
-  const [asg, vis] = await Promise.all([
+  const [asg, vis, req] = await Promise.all([
     q(sb.from('assignments').select('id, scheduled_on, status, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)')
       .eq('assignee', me.emp_id).eq('status', 'open').order('scheduled_on', { ascending: true })),
     q(sb.from('visits').select('id, assignment_id, entity_id, visit_no, status, visited_at, outcome, closure, followup_on, next_step, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)')
-      .eq('visitor', me.emp_id).order('visited_at', { ascending: false }).limit(500))
+      .eq('visitor', me.emp_id).order('visited_at', { ascending: false }).limit(500)),
+    q(sb.from('requests').select('id, kind, reason, created_at, assignment_id, visit_id').eq('raised_by', me.emp_id).eq('status', 'pending'))
   ]);
-  S.cache.visits = { asg, vis };
+  const hold = new Map(req.filter(r => r.assignment_id).map(r => [r.assignment_id, r]));
+  S.cache.visits = { asg, vis, req, hold };
   return S.cache.visits;
 }
 
 function visitGroups() {
-  const { asg, vis } = S.cache.visits;
+  const { asg, vis, hold } = S.cache.visits;
   const done = new Set(vis.filter(v => v.assignment_id).map(v => v.assignment_id));
   const today = todayISO();
-  const g = { overdue: [], today: [], upcoming: [], done: [] };
+  const g = { overdue: [], today: [], upcoming: [], done: [], hold: [] };
   for (const a of asg) {
     if (done.has(a.id)) g.done.push(a);
+    else if (hold && hold.has(a.id)) g.hold.push(a);
     else if (a.scheduled_on && a.scheduled_on < today) g.overdue.push(a);
     else if (a.scheduled_on === today) g.today.push(a);
     else g.upcoming.push(a);
@@ -81,16 +84,20 @@ async function drawTodo(el) {
     return;
   }
   const emptyMsg = { overdue: ['Nothing overdue', 'Well done. Every visit due so far has been logged.'], today: ['Nothing due today', 'Check Upcoming for what is next.'],
-    upcoming: ['Nothing coming up', 'No more allotted visits after today.'], done: ['No allotted visits logged yet', 'Open a place under Overdue, Today or Upcoming and tap Log visit.'] }[f];
+    upcoming: ['Nothing coming up', 'No more allotted visits after today.'], hold: ['Nothing on hold', 'Allotments you asked the admin to reassign or remove wait here, locked, until the admin decides.'], done: ['No allotted visits logged yet', 'Open a place under Overdue, Today or Upcoming and tap Log visit.'] }[f];
   el.innerHTML = `
     <div class="stats">
       <div class="stat ${g.overdue.length ? 'bad' : ''}"><b>${g.overdue.length}</b><span>Overdue</span></div>
-      <div class="stat warn"><b>${g.today.length + g.upcoming.length}</b><span>Coming up</span></div>
+      <div class="stat warn"><b>${g.today.length + g.upcoming.length}</b><span>Coming up${g.hold.length ? ` · ${g.hold.length} on hold` : ''}</span></div>
       <div class="stat ok"><b>${g.done.length}</b><span>Visited</span></div>
     </div>
-    <div class="chips">${chip('overdue', 'Overdue')}${chip('today', 'Today')}${chip('upcoming', 'Upcoming')}${chip('done', 'Visited')}</div>
+    <div class="chips">${chip('overdue', 'Overdue')}${chip('today', 'Today')}${chip('upcoming', 'Upcoming')}${chip('done', 'Visited')}${g.hold.length || f === 'hold' ? chip('hold', '🔒 On hold') : ''}</div>
     ${rows.length ? `<div class="list">${rows.map(a => {
       const late = f === 'overdue' ? daysBetween(a.scheduled_on, today) : 0;
+      const h = f === 'hold' && S.cache.visits.hold.get(a.id);
+      if (h) return `<button class="item locked" data-a="${a.id}"><div class="lock">${ICON.lock}</div><div class="grow"><div class="t">${esc(a.entity.name)}</div>
+          <div class="s">Asked to ${h.kind === 'reassign' ? 'reassign' : 'remove'} · ${ago(h.created_at)} · waiting for admin</div></div>
+        <span class="badge warn">Request pending</span></button>`;
       return `<button class="item" data-a="${a.id}"><div class="grow"><div class="t">${esc(a.entity.name)}</div>
           <div class="s">${esc(a.entity.type)}${a.entity.area ? ' · ' + esc(a.entity.area) : ''}</div></div>
         <div style="text-align:right;flex:none"><div class="mono" style="font-size:13px">${fmtDate(a.scheduled_on)}</div>

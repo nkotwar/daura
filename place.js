@@ -85,6 +85,9 @@ async function openPlace(e, assignment) {
   else if (latest.status === 'verified') action = `<button class="btn block" id="pl-fu">+ Add follow-up · Visit ${latest.visit_no + 1}</button>`;
   else action = `<div class="note">A follow-up can be added once Visit ${latest.visit_no} is verified.</div>`;
   const myAsg = assignment && assignment.status === 'open' && me && !asgVisited;
+  const held = myAsg && S.cache.visits && S.cache.visits.hold && S.cache.visits.hold.get(assignment.id);
+  if (held && !latest) action = `<div class="note warn lockednote">${ICON.lock}<div><b>Locked: request pending.</b> You asked to ${held.kind === 'reassign' ? 'reassign' : 'remove'} this visit
+    ${ago(held.created_at)}: "${esc(held.reason)}". It stays off your overdue list, and you can log it or ask again after the admin decides.</div></div>`;
 
   body.innerHTML = `
     <div class="row wrap" style="margin-bottom:10px"><span class="badge acc">${esc(e.type)}</span>${e.area ? `<span class="badge">${esc(e.area)}</span>` : ''}
@@ -95,6 +98,7 @@ async function openPlace(e, assignment) {
       ${e.lat != null ? `<a class="btn ghost grow" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}">${ICON.pin} Map</a>`
         : e.address ? `<a class="btn ghost grow" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.name + ', ' + e.address)}">${ICON.pin} Find on Maps</a>` : ''}
     </div>
+    <div id="pl-asg"></div>
     <div class="spacer"></div>${action}
     <h2>Visit history</h2>
     ${tl.length ? `<div class="list">${tl.map(v => `<button class="item" ${v.can_open ? `data-v="${v.id}"` : 'style="cursor:default"'}>
@@ -102,9 +106,10 @@ async function openPlace(e, assignment) {
         <div class="grow"><div class="t">${esc(cleanName(v.visitor))}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}${v.next_step ? ' · Next: ' + esc(v.next_step) : ''}</div></div>
         <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Submitted'}</span>${v.can_open ? `<span class="chev">${ICON.chev}</span>` : ''}</button>`).join('')}</div>`
       : '<p class="hint">Not visited yet.</p>'}
-    ${myAsg ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}`;
+    ${myAsg && !held ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}`;
 
-  const go = (nextNo) => openVisitForm({ entity: e, assignment: myAsg ? assignment : null, nextNo });
+  loadAssignees($('#pl-asg', body), e.id);
+  const go = (nextNo) => openVisitForm({ entity: e, assignment: myAsg && !held ? assignment : null, nextNo });
   if ($('#pl-log', body)) $('#pl-log', body).onclick = () => go(1);
   if ($('#pl-fu', body)) $('#pl-fu', body).onclick = () => go(latest.visit_no + 1);
   if ($('#pl-reopen', body)) $('#pl-reopen', body).onclick = async () => {
@@ -124,7 +129,11 @@ function askRequest(kind, visitId, asgId, title, placeholder) {
     const reason = $('#rq', body).value.trim();
     if (reason.length < 5) { $('#rqe', body).textContent = 'Please write a short reason.'; return; }
     $('#rqs', body).disabled = true;
-    try { await rpc('raise_request', { p_kind: kind, p_visit: visitId, p_assignment: asgId, p_reason: reason }); closeSheet(); toast('Request sent to the admin'); }
+    try {
+      await rpc('raise_request', { p_kind: kind, p_visit: visitId, p_assignment: asgId, p_reason: reason });
+      closeSheet(); toast(asgId ? 'Request sent. This visit is locked until the admin decides.' : 'Request sent to the admin');
+      S.cache.mw = null; if (S.tab === 'visits') viewVisits();
+    }
     catch (e) { $('#rqs', body).disabled = false; $('#rqe', body).textContent = errText(e); }
   };
 }
@@ -219,3 +228,29 @@ async function deleteVisitWithPhotos(id, photos) {
 }
 
 function refreshCurrent() { closeSheet(); S.cache.entities = null; if (VIEWS[S.tab]) VIEWS[S.tab](); }
+
+/* "Allotted to" on a place's page. Viewers and admin can tap a name to see that person's summary. */
+async function loadAssignees(el, entityId) {
+  if (!el) return;
+  let rows;
+  try { rows = await rpc('entity_assignees', { p_entity: entityId }); }
+  catch (e) {   // database not yet updated: viewers/admin can still read allotments directly
+    try {
+      const r = await q(sb.from('assignments').select('id, assignee, scheduled_on').eq('entity_id', entityId).eq('status', 'open'));
+      rows = r.map(a => ({ assignment_id: a.id, emp_id: a.assignee, name: personName(a.assignee), branch: (S.dir && S.dir.get(a.assignee) || {}).branch, scheduled_on: a.scheduled_on, visited: null }));
+    } catch (e2) { return; }
+  }
+  if (!rows.length) { el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>'; return; }
+  const today = todayISO(), canOpen = S.who.admin;
+  el.innerHTML = `<h4 class="dh">Allotted to</h4><div class="list">${rows.map(r => {
+    const st = r.verified ? '<span class="badge ok">Verified</span>' : r.visited ? '<span class="badge acc">Visited</span>'
+      : r.on_hold ? '<span class="badge warn">🔒 On hold</span>'
+      : r.scheduled_on && r.scheduled_on < today ? `<span class="badge bad">${daysBetween(r.scheduled_on, today)} d overdue</span>`
+      : r.scheduled_on === today ? '<span class="badge warn">Due today</span>' : `<span class="badge">Due ${r.scheduled_on ? fmtDate(r.scheduled_on) : '—'}</span>`;
+    const me = S.who.me && r.emp_id === S.who.me.emp_id;
+    return `<${canOpen ? `button class="item" data-st="${r.emp_id}"` : 'div class="item" style="cursor:default"'}>
+      <div class="avatar">${esc(initials(r.name))}</div>
+      <div class="grow"><div class="t">${esc(cleanName(r.name))}${me ? ' (you)' : ''}</div><div class="s">${esc(r.designation || '')}${r.branch ? ' · ' + esc(r.branch) : ''}</div></div>
+      ${st}${canOpen ? `<span class="chev">${ICON.chev}</span>` : ''}</${canOpen ? 'button' : 'div'}>`; }).join('')}</div>`;
+  $$('[data-st]', el).forEach(b => b.onclick = () => openStaff(+b.dataset.st));
+}

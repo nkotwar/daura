@@ -17,13 +17,14 @@ const telLink = phone => { const p = String(phone || '').replace(/\D/g, '').slic
 async function loadDashData(force = false) {
   if (!force && S.cache.dash && Date.now() - S.cache.dash.at < 120000) return S.cache.dash;
   await loadBasics();
-  const [asg, vis, branches, camps] = await Promise.all([
+  const [asg, vis, branches, camps, req] = await Promise.all([
     fetchAll(() => sb.from('assignments').select('id, assignee, scheduled_on, status, campaign_id, entity:entities(id, name, type, area)').eq('status', 'open').order('id')),
     fetchAll(() => sb.from('visits').select('id, entity_id, assignment_id, visit_no, visitor, visitor_branch, visited_at, logged_at, status, outcome, closure, potential_rs, mobilised_rs, products, account_numbers, followup_on, banking_with, other_bank, person_name, person_designation, person_mobile, headcount, headcount_kind, next_step, remarks, verified_at, verified_by, entity:entities(id, name, type, area)').order('id')),
     q(sb.from('branches').select('code, name, is_ro')),
-    q(sb.from('campaigns').select('id, name').order('id'))
+    q(sb.from('campaigns').select('id, name').order('id')),
+    q(sb.from('requests').select('assignment_id, kind').eq('status', 'pending').not('assignment_id', 'is', null))
   ]);
-  S.cache.dash = { at: Date.now(), asg, vis, branches, camps };
+  S.cache.dash = { at: Date.now(), asg, vis, branches, camps, hold: new Set(req.filter(r => r.kind === 'reassign' || r.kind === 'delete_assignment').map(r => r.assignment_id)) };
   return S.cache.dash;
 }
 
@@ -43,11 +44,11 @@ function dashModel(D, f) {
 
   const rows = D.asg.filter(okA).map(a => {
     const v = firstVisit.get(a.id);
-    const st = v ? (v.status === 'verified' ? 'verified' : 'submitted') : (a.scheduled_on && a.scheduled_on < today ? 'overdue' : 'notdue');
+    const st = v ? (v.status === 'verified' ? 'verified' : 'submitted') : D.hold && D.hold.has(a.id) ? 'hold' : (a.scheduled_on && a.scheduled_on < today ? 'overdue' : 'notdue');
     return { a, v, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, delay: v && a.scheduled_on ? daysBetween(a.scheduled_on, localDay(v.visited_at)) : null };
   });
   const vis = D.vis.filter(okV);
-  const n = { total: rows.length, verified: 0, submitted: 0, overdue: 0, notdue: 0 };
+  const n = { total: rows.length, verified: 0, submitted: 0, overdue: 0, notdue: 0, hold: 0 };
   rows.forEach(r => n[r.st]++);
   const visited = n.verified + n.submitted;
 
@@ -136,7 +137,7 @@ async function viewDashboard(force = false) {
     </div>
 
     <div class="card"><h3>Progress</h3>
-      ${stackBar([['Verified', N.verified, 'ok'], ['Visited, not verified', N.submitted, 'acc'], ['Not due yet', N.notdue, 'mute'], ['Overdue', N.overdue, 'bad']], N.total)}
+      ${stackBar([['Verified', N.verified, 'ok'], ['Visited, not verified', N.submitted, 'acc'], ['Not due yet', N.notdue, 'mute'], ['On hold (request)', N.hold, 'warn'], ['Overdue', N.overdue, 'bad']], N.total)}
     </div>
 
     <div class="card"><h3>Overdue ageing</h3>
@@ -203,7 +204,7 @@ async function viewDashboard(force = false) {
   $('#df-r').onclick = () => viewDashboard(true);
   $$('[data-br]').forEach(r => r.onclick = () => { f.branch = +r.dataset.br; viewDashboard(); window.scrollTo(0, 0); });
   $$('[data-of]').forEach(b => b.onclick = () => { S.cache.offF = b.dataset.of; viewDashboard(); });
-  $$('#offl [data-off]').forEach(b => b.onclick = () => openOfficer(+b.dataset.off));
+  $$('#offl [data-off]').forEach(b => b.onclick = () => (S.who.admin ? openStaff(+b.dataset.off) : openOfficer(+b.dataset.off)));
   $$('#main [data-v]').forEach(b => b.onclick = () => openVisit(b.dataset.v));
   $('#dx-img').onclick = () => summaryImage(M, f, D);
   $('#dx-xls').onclick = () => exportExcel(M, D);
@@ -241,7 +242,7 @@ function openOfficer(emp) {
   const M = S.cache.dashM; const o = M.byOff.find(x => x.emp === emp); if (!o) return;
   const rows = M.rows.filter(r => r.a.assignee === emp).sort((a, b) => (a.a.scheduled_on || '').localeCompare(b.a.scheduled_on || ''));
   const own = M.vis.filter(v => v.visitor === emp && !v.assignment_id);
-  const lbl = { verified: ['Verified', 'ok'], submitted: ['Visited', 'acc'], overdue: ['Overdue', 'bad'], notdue: ['Not due', ''] };
+  const lbl = { verified: ['Verified', 'ok'], submitted: ['Visited', 'acc'], overdue: ['Overdue', 'bad'], notdue: ['Not due', ''], hold: ['🔒 On hold', 'warn'] };
   const body = openSheet(o.name, `
     <div class="row wrap" style="margin-bottom:10px"><span class="badge">${esc(o.branch)}</span><span class="badge ok">${o.visited}/${o.total} visited</span>${o.overdue ? `<span class="badge bad">${o.overdue} overdue</span>` : ''}</div>
     <div class="row">${o.overdue && waLink(o.phone, overdueMsg(o)) ? `<a class="btn soft grow" target="_blank" rel="noopener" href="${waLink(o.phone, overdueMsg(o))}">${ICON.wa} Nudge on WhatsApp</a>` : ''}
@@ -307,11 +308,11 @@ async function summaryImage(M, f, D) {
   // progress bar
   let y = 510; const bw = W - 120;
   rr(60, y, bw, 26, 13, P.line);
-  let bx = 60; [[N.verified, P.ok], [N.submitted, P.acc], [N.notdue, P.mute], [N.overdue, P.bad]].forEach(([n, col]) => {
+  let bx = 60; [[N.verified, P.ok], [N.submitted, P.acc], [N.notdue, P.mute], [N.hold, P.warn], [N.overdue, P.bad]].forEach(([n, col]) => {
     if (!n || !N.total) return; const w = n / N.total * bw; x.fillStyle = col; x.fillRect(bx, y, w, 26); bx += w; });
   y += 62;
-  [['Verified', N.verified, P.ok], ['Visited', N.submitted, P.acc], ['Not due', N.notdue, P.mute], ['Overdue', N.overdue, P.bad]].forEach(([l, n, col], i) => {
-    const lx = 60 + i * 250; x.fillStyle = col; x.fillRect(lx, y - 18, 18, 18); txt(`${l} ${n}`, lx + 28, y, { f: sans(500, 24) }); });
+  [['Verified', N.verified, P.ok], ['Visited', N.submitted, P.acc], ['Not due', N.notdue, P.mute], ['On hold', N.hold, P.warn], ['Overdue', N.overdue, P.bad]].forEach(([l, n, col], i) => {
+    const lx = 60 + i * 200; x.fillStyle = col; x.fillRect(lx, y - 18, 18, 18); txt(`${l} ${n}`, lx + 28, y, { f: sans(500, 24) }); });
   // branch table: every branch
   const cols = [['Allotted', 580], ['Visited', 710], ['Overdue', 850], [`Due ${shortDay(M.tmr)}`, 1020]];
   y = 640 + 40;
@@ -356,7 +357,7 @@ function loadScript(src) {
 async function exportExcel(M, D) {
   toast('Preparing Excel…', 2000);
   try { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'); } catch (e) { toast(e.message); return; }
-  const st = { verified: 'Verified', submitted: 'Visited (not verified)', overdue: 'Overdue', notdue: 'Not due yet' };
+  const st = { verified: 'Verified', submitted: 'Visited (not verified)', overdue: 'Overdue', notdue: 'Not due yet', hold: 'On hold (request pending)' };
   const d = s => s ? new Date(s.length === 10 ? s + 'T00:00:00' : s) : null;
   const visits = M.vis.slice().sort((a, b) => a.visited_at.localeCompare(b.visited_at)).map(v => ({
     'Place': v.entity.name, 'Type': v.entity.type, 'Area': v.entity.area || '', 'Visit no': v.visit_no,

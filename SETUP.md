@@ -144,6 +144,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 7 | Sections slide as one continuous strip that follows your finger, with neighbours preloaded | None |
 | 8 | Sections fill the screen (swipe anywhere); clear empty states with next steps | None |
 | 10 | Rolled back version 9 (allotted-to list, staff summary panel, pull panels down to close). Same as version 8 | None |
+| 11 | Place shows who it is allotted to; admin's staff panel with visit summary and every allotted place; pull panels down to close; allotments with a pending request are locked | Run `sql/04_update_v11.sql` once |
 
 ---
 
