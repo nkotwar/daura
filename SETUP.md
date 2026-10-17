@@ -146,6 +146,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 10 | Rolled back version 9 (allotted-to list, staff summary panel, pull panels down to close). Same as version 8 | None |
 | 11 | Place shows who it is allotted to; admin's staff panel with visit summary and every allotted place; pull panels down to close; allotments with a pending request are locked | Run `sql/04_update_v11.sql` once |
 | 12 | Smoother section swipes; a place allotted to one person but visited by another shows "Visited by …" and counts as visited | Run `sql/05_update_v12.sql` once |
+| 13 | Faster, smoother: tabs stay built and refresh quietly, filters don't reload, panels swap content in place | None |
 
 ---
 

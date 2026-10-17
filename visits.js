@@ -2,7 +2,7 @@
 
 async function viewVisits() {
   const me = S.who.me;
-  const main = $('#main');
+  const main = TV();
   if (!me) {
     main.innerHTML = `<div class="empty">${ICON.shield}<p>You are signed in as admin without a staff profile.<br>Open the <b>Admin</b> tab.</p></div>`;
     return;
@@ -13,10 +13,14 @@ async function viewVisits() {
     { id: 'places', label: 'Places', badge: 'vn-places', draw: el => drawPlaces(el) }
   ];
   if (me.is_branch_head) panes.push({ id: 'verify', label: 'Verify', badge: 'vn-verify', draw: el => drawVerify(el) });
+  const old = $('#v-host', main);
+  if (old && old._pager && old._pager.ids === panes.map(p => p.id).join(',')) {   // already built: refresh quietly
+    S.cache.mw = null; await loadBasics().catch(() => {}); await old._pager.refresh(); countBadges(); return;
+  }
   main.innerHTML = `${S.updateReady ? updateBar() : ''}<div id="v-host"></div>`;
   bindUpdate();
   try { await loadBasics(); } catch (e) { /* each section shows its own error */ }
-  mountPager($('#v-host'), panes, S.cache.vseg || 'todo', id => { S.cache.vseg = id; remember(); });
+  mountPager($('#v-host', main), panes, S.cache.vseg || 'todo', id => { S.cache.vseg = id; remember(); });
   countBadges();
 }
 
@@ -72,8 +76,8 @@ function visitGroups() {
   return g;
 }
 
-async function drawTodo(el) {
-  await loadMyWork();
+async function drawTodo(el, noFetch) {
+  if (!noFetch || !S.cache.visits) await loadMyWork();
   const g = visitGroups();
   const f = S.cache.visitFilter && g[S.cache.visitFilter] ? S.cache.visitFilter : (g.overdue.length ? 'overdue' : g.today.length ? 'today' : 'upcoming');
   S.cache.visitFilter = f;
@@ -108,7 +112,7 @@ async function drawTodo(el) {
       : emptyState(f === 'overdue' ? ICON.shield : ICON.calendar, emptyMsg[0], emptyMsg[1])}
     <div class="spacer"></div>
     <p class="hint" style="text-align:center">Visiting somewhere not on your list? <button class="linkbtn" data-goto="places">Find or add it in Places</button></p>`;
-  $$('.chip[data-f]', el).forEach(b => b.onclick = () => { S.cache.visitFilter = b.dataset.f; drawTodo(el); });
+  $$('.chip[data-f]', el).forEach(b => b.onclick = () => { S.cache.visitFilter = b.dataset.f; drawTodo(el, true); });
   $$('[data-a]', el).forEach(b => b.onclick = () => { const a = S.cache.visits.asg.find(x => x.id === b.dataset.a); openPlace(a.entity, a); });
 }
 

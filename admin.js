@@ -1,10 +1,10 @@
 /* Daura · Admin tab: people and their Gmails, roles, blocking; verifying visits; the requests queue;
    the staff list (udairo.js upload) and photo storage; the activity feed. The dashboard arrives next. */
 
-const admPane = id => $(`#main .pane[data-pane="${id}"]`) || document.createElement('div');
+const admPane = id => $(`#main > .tabview[data-tab="admin"] .pane[data-pane="${id}"]`) || document.createElement('div');
 
 async function viewAdmin() {
-  if (!S.who.admin) { $('#main').innerHTML = '<div class="empty">Admins only.</div>'; return; }
+  if (!S.who.admin) { TV().innerHTML = '<div class="empty">Admins only.</div>'; return; }
   await loadBasics();
   const panes = [
     { id: 'people', label: 'People', badge: 'an-people', draw: () => admPeople() },
@@ -13,9 +13,11 @@ async function viewAdmin() {
     { id: 'staff', label: 'Staff list', badge: 'an-staff', draw: () => admStaff() },
     { id: 'activity', label: 'Activity', badge: 'an-activity', draw: () => admActivity() }
   ];
-  $('#main').innerHTML = `${S.updateReady ? updateBar() : ''}<div id="adm-host"></div>`;
+  const old = $('#adm-host', TV());
+  if (old && old._pager) { S.cache.people = null; S.cache.avRows = null; await loadBasics().catch(() => {}); await old._pager.refresh(); adminBadges(); return; }
+  TV().innerHTML = `${S.updateReady ? updateBar() : ''}<div id="adm-host"></div>`;
   bindUpdate();
-  mountPager($('#adm-host'), panes, S.cache.adminSeg || 'people', id => { S.cache.adminSeg = id; remember(); });
+  mountPager($('#adm-host', TV()), panes, S.cache.adminSeg || 'people', id => { S.cache.adminSeg = id; remember(); });
   adminBadges();
 }
 
@@ -31,10 +33,11 @@ async function adminBadges() {
 
 /* ───────── Verify (admin) ─────────
    "Needs you": visits by branch heads and RO staff (no branch head above them). "All": every unverified visit. */
-async function admVerify() {
-  const [rows, branches] = await Promise.all([
+async function admVerify(noFetch) {
+  if (!noFetch || !S.cache.avRows) S.cache.avRows = await Promise.all([
     q(sb.from('visits').select('id, visit_no, visitor, visitor_branch, visited_at, outcome, closure, entity:entities(name, type)').eq('status', 'submitted').order('visited_at', { ascending: true }).limit(1000)),
     q(sb.from('branches').select('code, name, is_ro'))]);
+  const [rows, branches] = S.cache.avRows;
   const ro = new Set(branches.filter(b => b.is_ro).map(b => b.code));
   const bname = new Map(branches.map(b => [b.code, b.name]));
   const needs = v => ro.has(v.visitor_branch) || (S.dir.get(v.visitor) || {}).is_branch_head;
@@ -49,7 +52,7 @@ async function admVerify() {
         <div class="grow"><div class="t">${esc(v.entity.name)} · V${v.visit_no}</div>
           <div class="s">${esc(personName(v.visitor))} · ${esc(bname.get(v.visitor_branch) || '')} · ${fmtDateTime(v.visited_at)}</div></div>
         <span class="chev">${ICON.chev}</span></button>`).join('')}</div>` : emptyState(ICON.shield, f === 'needs' ? 'Nothing needs you' : 'Nothing waiting', f === 'needs' ? 'Visits by branch heads and RO staff come here for your check. Branch heads verify their own staff.' : 'Every logged visit has been verified.')}`;
-  $$('[data-avf]').forEach(b => b.onclick = () => { S.cache.avf = b.dataset.avf; admVerify(); });
+  $$('[data-avf]', admPane('verify')).forEach(b => b.onclick = () => { S.cache.avf = b.dataset.avf; admVerify(true); });
   $$('[data-v]', admPane('verify')).forEach(b => b.onclick = () => openVisit(b.dataset.v));
 }
 

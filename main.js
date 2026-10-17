@@ -24,8 +24,16 @@ function remember() {
 
 function show(tab) {
   if (!VIEWS[tab] || (tab === 'admin' && !S.who.admin) || (tab === 'dashboard' && !S.who.viewer)) tab = 'visits';
+  const main = $('#main');
+  S.scrollAt = S.scrollAt || {};
+  if (S.tab && main.querySelector('.tabview')) S.scrollAt[S.tab] = window.scrollY;   // remember where you were in the tab you leave
+  [...main.children].forEach(c => { if (!c.classList.contains('tabview')) c.remove(); });   // clear sign-in / loading screens
+  let tv = main.querySelector(`:scope > .tabview[data-tab="${tab}"]`);
+  const fresh = !tv;
+  if (fresh) { tv = document.createElement('div'); tv.className = 'tabview'; tv.dataset.tab = tab; main.appendChild(tv); }
+  $$(':scope > .tabview', main).forEach(x => { x.hidden = x !== tv; });
   S.tab = tab; renderTabs(true); remember();
-  $('#main').scrollTop = 0; window.scrollTo(0, 0);
+  window.scrollTo(0, fresh ? 0 : (S.scrollAt[tab] || 0));
   VIEWS[tab]();
 }
 

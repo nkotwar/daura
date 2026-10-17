@@ -109,9 +109,9 @@ function dashModel(D, f) {
 
 /* ───────── view ───────── */
 async function viewDashboard(force = false) {
-  const main = $('#main');
+  const main = TV();
   if (!S.who.viewer) { main.innerHTML = '<div class="empty">For admin and viewers.</div>'; return; }
-  if (!S.cache.dash || force) main.innerHTML = '<div class="spin"></div>';
+  if (!main.children.length) main.innerHTML = '<div class="spin"></div>';
   let D;
   try { D = await loadDashData(force); } catch (e) { main.innerHTML = `<div class="empty"><p>${esc(errText(e))}</p><button class="btn" id="rt">Try again</button></div>`; $('#rt').onclick = () => viewDashboard(true); return; }
   const f = S.cache.dashF || (S.cache.dashF = { camp: null, type: null, branch: null });
@@ -209,7 +209,7 @@ async function viewDashboard(force = false) {
   $$('[data-br]').forEach(r => r.onclick = () => { f.branch = +r.dataset.br; viewDashboard(); window.scrollTo(0, 0); });
   $$('[data-of]').forEach(b => b.onclick = () => { S.cache.offF = b.dataset.of; viewDashboard(); });
   $$('#offl [data-off]').forEach(b => b.onclick = () => (S.who.admin ? openStaff(+b.dataset.off) : openOfficer(+b.dataset.off)));
-  $$('#main [data-v]').forEach(b => b.onclick = () => openVisit(b.dataset.v));
+  $$('[data-v]', main).forEach(b => b.onclick = () => openVisit(b.dataset.v));
   $('#dx-img').onclick = () => summaryImage(M, f, D);
   $('#dx-xls').onclick = () => exportExcel(M, D);
   loadGallery(f, M);

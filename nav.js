@@ -60,6 +60,11 @@ function mountPager(host, panes, activeId, onChange) {
   place(0, false); fit(); onChange(panes[i].id); centreTab(i, false);
   load(i).then(() => { fit(); return Promise.all([load(i - 1), load(i + 1)]); });
   btns.forEach((b, k) => b.onclick = () => goTo(k));
+  // Redraw the sections already loaded, keeping what is on screen until the new content is ready.
+  host._pager = {
+    ids: panes.map(p => p.id).join(','),
+    refresh: () => Promise.all([...loaded.keys()].map(k => Promise.resolve().then(() => panes[k].draw(els[k])).catch(() => {}))).then(fit)
+  };
 
   // finger tracking
   let sx = 0, sy = 0, st = 0, dx = 0, lock = null, shift = 0, raf = 0, on = false;
@@ -111,7 +116,7 @@ window.addEventListener('popstate', async () => {
   // not inside the app (sign-in screens): let the phone go back normally
   if (!S.who || !$('#tabs') || $('#tabs').hidden) { NAV.armed = false; history.back(); return; }
   // 2. back to the first section of this tab
-  const btns = $$('#main .seg button');
+  const btns = $$('.seg button', TV());
   if (btns.length && !btns[0].classList.contains('on')) { btns[0].click(); keep(); return; }
   // 3. back to the first tab
   const first = TABS.filter(t => t.show())[0].id;

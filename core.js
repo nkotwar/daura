@@ -14,6 +14,8 @@ const sb = configured ? supabase.createClient(DAURA_CONFIG.supabaseUrl, DAURA_CO
 }) : null;
 
 const $ = (q, el = document) => el.querySelector(q);
+/* The current tab's own container. Tabs you have visited stay built (hidden) and refresh quietly when you return. */
+const TV = () => document.querySelector(`#main > .tabview[data-tab="${S.tab}"]`) || document.getElementById('main');
 const $$ = (q, el = document) => [...el.querySelectorAll(q)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -40,7 +42,7 @@ const emptyState = (icon, title, text, actions = '') =>
 /* Buttons inside a section that jump to another section of the same tab: data-goto="<pane id>" */
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-goto]'); if (!b) return;
-  const t = $(`#main .pseg button[data-pid="${b.dataset.goto}"]`); if (t) t.click();
+  const t = $(`.pseg button[data-pid="${b.dataset.goto}"]`, TV()); if (t) t.click();
 });
 
 function toast(msg, ms = 2600) {
@@ -84,7 +86,16 @@ async function q(promise) {
 
 /* Bottom sheet: openSheet(title, html) → returns the body element. */
 function openSheet(title, html, onClose) {
-  closeSheet();
+  const cur = $('#layer .scrim');
+  if (cur) {   // a panel is already open: swap its content in place
+    const cb = cur._onClose; cur._onClose = onClose; if (cb) cb();
+    const sh = $('.sheet', cur); sh.setAttribute('aria-label', title); sh.style.transform = ''; cur.style.background = '';
+    $('.sheet-head h3', cur).textContent = title;
+    const body = $('.sheet-body', cur);
+    body.innerHTML = html; body.scrollTop = 0;
+    body.classList.remove('swap'); void body.offsetWidth; body.classList.add('swap');
+    return body;
+  }
   const wrap = document.createElement('div');
   wrap.className = 'scrim';
   wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">

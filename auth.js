@@ -210,6 +210,6 @@ async function signOut(scope = 'local', quiet = false) {
   try { await sb.auth.signOut({ scope }); } catch (e) { if (scope === 'global') { toast(errText(e)); return; } }
   try { localStorage.removeItem('daura-auth'); } catch (e) { /* storage may be blocked */ }
   try { google.accounts.id.disableAutoSelect(); } catch (e) { /* not loaded */ }
-  S.who = null; S.cache = {}; S.tab = 'visits';
+  S.who = null; S.cache = {}; S.tab = 'visits'; S.scrollAt = {}; $('#main').innerHTML = '';
   if (!quiet) { screenSignIn(); toast(scope === 'global' ? 'Signed out on all devices' : 'Signed out'); }
 }

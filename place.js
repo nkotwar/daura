@@ -13,7 +13,7 @@ async function loadEntities(force = false) {
 
 /* ───────── Places tab segment ───────── */
 async function drawPlaces(el) {
-  el.innerHTML = '<div class="spin"></div>';
+  if (!el.children.length || el.querySelector(':scope > .spin')) el.innerHTML = '<div class="spin"></div>';
   let list;
   try { list = await loadEntities(); } catch (e) { el.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
   el.innerHTML = `<div class="row" style="margin-bottom:10px"><div class="search grow">${ICON.search}<input class="input" id="eq" type="search" placeholder="Search ${list.length} places" value="${esc(S.cache.placeQ || '')}" autocomplete="off"></div></div>

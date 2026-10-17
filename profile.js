@@ -2,7 +2,7 @@
 
 async function viewProfile() {
   const me = S.who.me;
-  const main = $('#main');
+  const main = TV();
   main.innerHTML = `${S.updateReady ? updateBar() : ''}
     ${me ? profileCard(me, null) + `<div class="row wrap" style="margin:-4px 0 14px">
         <span class="badge acc">${roleLabel(me.role)}</span>${me.is_branch_head ? '<span class="badge ok">Branch head: verifies branch visits</span>' : ''}
@@ -46,7 +46,7 @@ async function loadLogins() {
 
 /* App updates: the service worker keeps the app working offline; a new version.js means new files are waiting. */
 const updateBar = () => `<div class="update-bar">Version ${S.updateReady} is available.<button id="upd">Update now</button></div>`;
-function bindUpdate() { const b = $('#upd'); if (b) b.onclick = applyUpdate; }
+function bindUpdate() { $$('[id="upd"]').forEach(b => { b.onclick = applyUpdate; }); }
 async function checkForUpdate() {
   try {
     const t = await (await fetch('version.js?t=' + Date.now(), { cache: 'no-store' })).text();
