@@ -159,3 +159,22 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
 .update-bar button{margin-left:auto;background:var(--accent-ink);color:var(--accent);border:0;border-radius:9px;padding:6px 12px;font-weight:700;cursor:pointer}
 
 @media (min-width:640px){main{padding-top:22px}}
+
+/* Visit form & photos (v2) */
+.fs{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px 14px 14px;margin-bottom:12px}
+.fs h4{margin:12px 0 0;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--accent)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g2 label.f{margin-top:12px}
+.chipwrap{display:flex;flex-wrap:wrap;gap:8px}
+textarea.input{resize:vertical;min-height:44px}
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:420px){.pgrid{grid-template-columns:repeat(2,1fr)}}
+.pthumb{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--surface-2);display:block}
+.pthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ptag{position:absolute;left:6px;bottom:6px;font-size:10.5px;font-weight:700;background:rgba(10,20,35,.65);color:#fff;border-radius:6px;padding:1px 6px}
+.prm{position:absolute;right:5px;top:5px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(10,20,35,.65);color:#fff;display:grid;place-items:center;cursor:pointer}
+.prm svg{width:15px;height:15px}
+.segn{font-family:var(--mono);font-size:12px;color:var(--bad)}
+.seg-scroll{overflow-x:auto;scrollbar-width:none}
+.seg-scroll::-webkit-scrollbar{display:none}
+.seg-scroll button{flex:1 0 auto;padding:8px 10px}

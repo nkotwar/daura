@@ -131,6 +131,13 @@ A person can link more than one Gmail. Every new link shows in **Admin → Activ
 
 Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB** it shows a warning. The step-by-step guide for moving photos to Google Drive comes with the photo update, and switching storage won't change anything else in the app.
 
+## Version history
+
+| Version | What changed | Database step |
+|---|---|---|
+| 1 | Sign-in, profiles, admin people & staff list | `sql/01_schema.sql` + private seed |
+| 2 | Logging visits with photos, follow-ups, closures, places, branch-head and admin verification, requests | Run `sql/03_update_v2.sql` once |
+
 ---
 
 Built by Nitin Kotwar (139535), via PDUDAIRO.

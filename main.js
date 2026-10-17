@@ -4,6 +4,7 @@ const VIEWS = { visits: () => viewVisits(), admin: () => viewAdmin(), profile: (
 
 function startApp() {
   if (!S.who) return route();
+  setTimeout(flushOutbox, 1500);
   if (!S.who.me && S.who.admin) S.tab = 'admin';
   header(); renderTabs(true); show(S.tab);
 }
@@ -27,6 +28,7 @@ async function boot() {
   });
   await route();
   checkForUpdate();
+  flushOutbox();
 }
 
 // Re-check identity when the app comes back to the foreground (blocked / unlinked people drop out).

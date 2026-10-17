@@ -1,21 +1,104 @@
-/* Daura · Admin tab (foundation build): people and their Gmails, roles, blocking,
-   the staff list (udairo.js upload), photo storage, and the activity feed.
-   The dashboard, verification queue and requests arrive in later builds. */
+/* Daura · Admin tab: people and their Gmails, roles, blocking; verifying visits; the requests queue;
+   the staff list (udairo.js upload) and photo storage; the activity feed. The dashboard arrives next. */
 
 async function viewAdmin() {
   if (!S.who.admin) { $('#main').innerHTML = '<div class="empty">Admins only.</div>'; return; }
   const seg = S.cache.adminSeg || 'people';
-  $('#main').innerHTML = `<div class="seg">
-      <button data-seg="people" class="${seg === 'people' ? 'on' : ''}">People</button>
-      <button data-seg="staff" class="${seg === 'staff' ? 'on' : ''}">Staff list</button>
-      <button data-seg="activity" class="${seg === 'activity' ? 'on' : ''}">Activity</button>
-    </div><div id="adm"><div class="spin"></div></div>`;
+  const segs = [['people', 'People'], ['verify', 'Verify'], ['requests', 'Requests'], ['staff', 'Staff list'], ['activity', 'Activity']];
+  $('#main').innerHTML = `${S.updateReady ? updateBar() : ''}<div class="seg seg-scroll">${segs.map(([k, l]) =>
+      `<button data-seg="${k}" class="${seg === k ? 'on' : ''}">${l}<span class="segn" id="an-${k}"></span></button>`).join('')}</div>
+    <div id="adm"><div class="spin"></div></div>`;
+  bindUpdate();
   $$('[data-seg]').forEach(b => b.onclick = () => { S.cache.adminSeg = b.dataset.seg; viewAdmin(); });
   try {
+    await loadBasics();
     if (seg === 'people') await admPeople();
+    else if (seg === 'verify') await admVerify();
+    else if (seg === 'requests') await admRequests();
     else if (seg === 'staff') await admStaff();
     else await admActivity();
   } catch (e) { $('#adm').innerHTML = `<div class="empty"><p>${esc(errText(e))}</p></div>`; }
+  adminBadges();
+}
+
+async function adminBadges() {
+  try {
+    const [{ count: rq }, { count: vf }] = await Promise.all([
+      sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      sb.from('visits').select('id', { count: 'exact', head: true }).eq('status', 'submitted')]);
+    const a = $('#an-requests'); if (a) a.textContent = rq ? ` · ${rq}` : '';
+    const b = $('#an-verify'); if (b) b.textContent = vf ? ` · ${vf}` : '';
+  } catch (e) { /* offline */ }
+}
+
+/* ───────── Verify (admin) ─────────
+   "Needs you": visits by branch heads and RO staff (no branch head above them). "All": every unverified visit. */
+async function admVerify() {
+  const [rows, branches] = await Promise.all([
+    q(sb.from('visits').select('id, visit_no, visitor, visitor_branch, visited_at, outcome, closure, entity:entities(name, type)').eq('status', 'submitted').order('visited_at', { ascending: true }).limit(1000)),
+    q(sb.from('branches').select('code, name, is_ro'))]);
+  const ro = new Set(branches.filter(b => b.is_ro).map(b => b.code));
+  const bname = new Map(branches.map(b => [b.code, b.name]));
+  const needs = v => ro.has(v.visitor_branch) || (S.dir.get(v.visitor) || {}).is_branch_head;
+  const f = S.cache.avf || 'needs';
+  const list = f === 'needs' ? rows.filter(needs) : rows;
+  $('#adm').innerHTML = `<div class="chips">
+      <button class="chip ${f === 'needs' ? 'on' : ''}" data-avf="needs">Needs you<b>${rows.filter(needs).length}</b></button>
+      <button class="chip ${f === 'all' ? 'on' : ''}" data-avf="all">All unverified<b>${rows.length}</b></button></div>
+    <p class="hint">Branch heads verify their own staff. Visits by branch heads and RO staff come to you. You can verify any visit.</p>
+    ${list.length ? `<div class="list">${list.map(v => `<button class="item" data-v="${v.id}">
+        <div class="avatar">${esc(initials(personName(v.visitor)))}</div>
+        <div class="grow"><div class="t">${esc(v.entity.name)} · V${v.visit_no}</div>
+          <div class="s">${esc(personName(v.visitor))} · ${esc(bname.get(v.visitor_branch) || '')} · ${fmtDateTime(v.visited_at)}</div></div>
+        <span class="chev">${ICON.chev}</span></button>`).join('')}</div>` : `<div class="empty">${ICON.shield}<p>Nothing waiting.</p></div>`}`;
+  $$('[data-avf]').forEach(b => b.onclick = () => { S.cache.avf = b.dataset.avf; admVerify(); });
+  $$('#adm [data-v]').forEach(b => b.onclick = () => openVisit(b.dataset.v));
+}
+
+/* ───────── Requests (admin) ───────── */
+const RQ_LABEL = { delete_visit: 'Delete a visit', delete_assignment: 'Remove an allotment', reassign: 'Reassign an allotment', unverify: 'Unverify a visit (to edit)' };
+async function admRequests() {
+  const sel = 'id, kind, reason, status, created_at, decided_at, decision_note, raised_by, visit_id, assignment_id, ' +
+    'visit:visits(id, visit_no, visitor, entity:entities(name)), assignment:assignments(id, assignee, scheduled_on, entity:entities(name))';
+  const [pending, done] = await Promise.all([
+    q(sb.from('requests').select(sel).eq('status', 'pending').order('created_at')),
+    q(sb.from('requests').select(sel).neq('status', 'pending').order('decided_at', { ascending: false }).limit(20))]);
+  const target = r => r.visit ? `${esc(r.visit.entity.name)} · Visit ${r.visit.visit_no}` : r.assignment ? `${esc(r.assignment.entity.name)} · scheduled ${fmtDate(r.assignment.scheduled_on)}` : '<i>no longer exists</i>';
+  $('#adm').innerHTML = `
+    ${pending.length ? pending.map(r => `<div class="card">
+        <div class="row"><span class="badge warn">${RQ_LABEL[r.kind]}</span><span class="grow"></span><span class="hint">${ago(r.created_at)}</span></div>
+        <h3 style="margin-top:10px">${target(r)}</h3>
+        <p class="hint" style="margin:2px 0 8px">From ${esc(personName(r.raised_by))}</p>
+        <div class="note">"${esc(r.reason)}"</div>
+        ${r.kind === 'reassign' ? `<label class="f" for="to-${r.id}">Reassign to</label>
+          <select class="input" id="to-${r.id}"><option value="">Choose a person…</option>${[...S.dir.values()].filter(p => p.emp_id !== r.raised_by).map(p => `<option value="${p.emp_id}">${esc(cleanName(p.name))} · ${esc(p.branch || '')}</option>`).join('')}</select>` : ''}
+        <input class="input" id="nt-${r.id}" placeholder="Note to them (optional)" style="margin-top:10px">
+        <div class="row" style="margin-top:10px">
+          ${r.visit_id ? `<button class="btn ghost small" data-open="${r.visit_id}">View visit</button>` : ''}
+          <span class="grow"></span>
+          <button class="btn ghost small" data-dec="${r.id}">Decline</button>
+          <button class="btn small" data-ok="${r.id}">Approve</button></div></div>`).join('')
+      : `<div class="empty">${ICON.shield}<p>No requests waiting.</p></div>`}
+    ${done.length ? `<h2>Recently decided</h2><div class="list">${done.map(r => `<div class="item" style="cursor:default"><div class="grow">
+        <div class="t">${RQ_LABEL[r.kind]}</div><div class="s">${target(r)} · ${esc(personName(r.raised_by))}${r.decision_note ? ' · ' + esc(r.decision_note) : ''}</div></div>
+        <span class="badge ${r.status === 'approved' ? 'ok' : ''}">${r.status === 'approved' ? 'Approved' : 'Declined'}</span></div>`).join('')}</div>` : ''}`;
+  $$('#adm [data-open]').forEach(b => b.onclick = () => openVisit(b.dataset.open));
+  const decide = async (id, approve) => {
+    const r = pending.find(x => x.id === id);
+    const note = ($('#nt-' + id) || {}).value || null;
+    let to = null;
+    if (approve && r.kind === 'reassign') { to = +($('#to-' + id).value || 0); if (!to) { toast('Choose who to reassign to'); return; } }
+    try {
+      if (approve && r.kind === 'delete_visit' && r.visit_id) {
+        const ph = await q(sb.from('visit_photos').select('path').eq('visit_id', r.visit_id));
+        if (ph.length) await sb.storage.from('photos').remove(ph.map(p => p.path));
+      }
+      await rpc('decide_request', { p_request: id, p_approve: approve, p_note: note, p_to: to });
+      toast(approve ? 'Approved' : 'Declined'); admRequests(); adminBadges();
+    } catch (e) { toast(errText(e)); }
+  };
+  $$('#adm [data-ok]').forEach(b => b.onclick = () => decide(b.dataset.ok, true));
+  $$('#adm [data-dec]').forEach(b => b.onclick = () => decide(b.dataset.dec, false));
 }
 
 /* ───────── People ───────── */
@@ -197,7 +280,8 @@ const ACT = {
   visit_unverified: () => 'unverified a visit',
   request_raised: (a) => `raised a ${String(a.detail?.kind || '').replace('_', ' ')} request`,
   request_decided: (a) => `${a.detail?.approved ? 'approved' : 'declined'} a request`,
-  assignment_reassigned: () => 'reassigned a visit'
+  assignment_reassigned: () => 'reassigned a visit',
+  place_reopened: () => 'reopened a closed place'
 };
 async function admActivity() {
   const rows = await rpc('admin_activity', { p_limit: 150 });
