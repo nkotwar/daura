@@ -55,9 +55,17 @@ async function checkForUpdate() {
   } catch (e) { /* offline */ }
 }
 async function applyUpdate() {
+  const b = $('#upd'); if (b) { b.disabled = true; b.textContent = 'Updating…'; }
   try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) {
+      // Wait (up to 8 s) for the new service worker to take over, so the reload gets the new files.
+      const took = new Promise(res => { navigator.serviceWorker.addEventListener('controllerchange', res, { once: true }); setTimeout(res, 8000); });
+      await reg.update();
+      if (reg.installing || reg.waiting) await took;
+    }
     const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k)));
-    const reg = await navigator.serviceWorker.getRegistration(); if (reg) await reg.update();
   } catch (e) { /* ignore */ }
+  try { sessionStorage.setItem('daura-tab', 'profile'); sessionStorage.setItem('daura-updated', String(S.updateReady || '')); } catch (e) { /* storage blocked */ }
   location.reload();
 }

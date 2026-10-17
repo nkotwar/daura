@@ -229,7 +229,7 @@ async function saveForm(body, F) {
   if (F.closure === 'account_opened' && !accs.length) return err('Please enter the account number opened.');
   const num = id => { const x = $b(id).value; return x === '' ? null : Number(x); };
   const visit = {
-    entity_id: F.entity.id, assignment_id: F.assignment_id,
+    entity_id: F.entity.id, assignment_id: F.assignment_id, visitor: S.who.me.emp_id,
     visited_at: new Date(when).toISOString(),
     lat: F.pos && F.pos.lat != null ? F.pos.lat : null, lng: F.pos && F.pos.lat != null ? F.pos.lng : null,
     accuracy_m: F.pos && F.pos.acc != null ? F.pos.acc : null, loc_source: F.pos && F.pos.lat != null ? 'gps' : 'none',

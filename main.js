@@ -4,6 +4,12 @@ const VIEWS = { visits: () => viewVisits(), admin: () => viewAdmin(), profile: (
 
 function startApp() {
   if (!S.who) return route();
+  try {
+    const t = sessionStorage.getItem('daura-tab'); const want = +sessionStorage.getItem('daura-updated');
+    sessionStorage.removeItem('daura-tab'); sessionStorage.removeItem('daura-updated');
+    if (t) S.tab = t;
+    if (want) setTimeout(() => toast(APP_VERSION >= want ? `Updated to version ${APP_VERSION}` : 'Update still downloading. Close and reopen Daura in a minute.', 3500), 600);
+  } catch (e) { /* storage blocked */ }
   setTimeout(flushOutbox, 1500);
   if (!S.who.me && S.who.admin) S.tab = 'admin';
   header(); renderTabs(true); show(S.tab);
@@ -40,5 +46,5 @@ document.addEventListener('visibilitychange', async () => {
   } catch (e) { /* offline: keep going */ }
 });
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 boot();

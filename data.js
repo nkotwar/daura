@@ -41,11 +41,11 @@ const isNetErr = e => !navigator.onLine || /Failed to fetch|NetworkError|network
 async function pushVisit(item) {
   const v = item.visit;
   if (item.isNew && !item.inserted) {
-    const { error } = await sb.from('visits').insert({ id: item.id, ...v });
+    const { error } = await sb.from('visits').insert({ id: item.id, ...v, visitor: v.visitor || (S.who.me && S.who.me.emp_id) });
     if (error && error.code !== '23505') throw error;
     item.inserted = true;
   } else if (!item.isNew && !item.updated) {
-    const { entity_id, assignment_id, ...rest } = v;
+    const { entity_id, assignment_id, visitor, ...rest } = v;
     const { data, error } = await sb.from('visits').update(rest).eq('id', item.id).select('id');
     if (error) throw error;
     if (!data || !data.length) throw { message: 'LOCKED', hint: 'This visit can no longer be edited. It may have been verified.' };
