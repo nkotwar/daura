@@ -239,3 +239,10 @@ html,body{overscroll-behavior-y:contain}
 .empty.big p{margin:0;max-width:310px;line-height:1.5}
 .eact{display:flex;flex-direction:column;gap:10px;margin-top:20px;width:100%;max-width:280px}
 .pager{padding-bottom:calc(96px + env(safe-area-inset-bottom));margin-bottom:calc(-96px - env(safe-area-inset-bottom))}   /* swipe area reaches down to the tab bar */
+
+/* Panels: drag handle, pull down to close (v9) */
+.grab{display:flex;justify-content:center;padding:8px 0 0;cursor:grab;touch-action:none}
+.grab i{width:40px;height:5px;border-radius:3px;background:var(--line)}
+.sheet-head{padding-top:6px;touch-action:none}
+.sheet-body{overscroll-behavior-y:contain}
+.sheet-body .stats{grid-template-columns:repeat(3,1fr)}

@@ -203,7 +203,7 @@ async function viewDashboard(force = false) {
   $('#df-r').onclick = () => viewDashboard(true);
   $$('[data-br]').forEach(r => r.onclick = () => { f.branch = +r.dataset.br; viewDashboard(); window.scrollTo(0, 0); });
   $$('[data-of]').forEach(b => b.onclick = () => { S.cache.offF = b.dataset.of; viewDashboard(); });
-  $$('#offl [data-off]').forEach(b => b.onclick = () => openOfficer(+b.dataset.off));
+  $$('#offl [data-off]').forEach(b => b.onclick = () => openStaff(+b.dataset.off));
   $$('#main [data-v]').forEach(b => b.onclick = () => openVisit(b.dataset.v));
   $('#dx-img').onclick = () => summaryImage(M, f, D);
   $('#dx-xls').onclick = () => exportExcel(M, D);

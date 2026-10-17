@@ -165,6 +165,7 @@ function openPerson(emp) {
       <a class="btn soft grow" href="tel:+91${phone}">${ICON.phone} Call</a>
       <a class="btn soft grow" target="_blank" rel="noopener" href="https://wa.me/91${phone}?text=${encodeURIComponent(`Dear ${cleanName(p.name)}, please sign in to Daura with your Gmail: ${location.origin + location.pathname}`)}">${ICON.wa} Invite on WhatsApp</a></div>` : ''}
 
+    <h2>Visits</h2><div id="sw"></div>
     <h2>Gmails</h2>
     ${p.logins.length ? `<div class="list">${p.logins.map(l => `<div class="item" style="cursor:default">
         <div class="grow"><div class="t" style="overflow-wrap:anywhere">${esc(l.gmail)}</div>
@@ -185,6 +186,7 @@ function openPerson(emp) {
     <h2>Access</h2>
     ${isMe ? '<p class="hint">You can\'t block yourself.</p>' : `<button class="btn block ${p.blocked ? 'soft' : 'danger'}" id="blk">${p.blocked ? 'Unblock: allow access again' : 'Block: cut off access on every device now'}</button>`}
   `);
+  loadStaffWork($('#sw', body), emp);
   const refresh = async (msg) => { toast(msg); S.cache.people = await rpc('admin_people'); closeSheet(); admPeople(false); openPerson(emp); };
   $$('[data-unlink]', body).forEach(b => b.onclick = async () => {
     if (!await confirmSheet('Unlink this Gmail?', `<b>${esc(b.dataset.unlink)}</b> will no longer open ${esc(cleanName(p.name))}'s profile.`, 'Unlink', true)) return openPerson(emp);
