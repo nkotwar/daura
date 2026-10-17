@@ -101,6 +101,7 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
 .chips::-webkit-scrollbar{display:none}
 .chips.wrap{flex-wrap:wrap;overflow:visible}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer;color:var(--muted)}
+.chip.hot{border-color:var(--bad);color:var(--bad)}
 .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .chip b{font-family:var(--mono);margin-left:4px;opacity:.75}
 

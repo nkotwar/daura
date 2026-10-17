@@ -1,4 +1,4 @@
-/* TASC Connect · Visits tab: To do (your allotments) · My visits (logged, follow-ups, waiting to send) · Places · Verify (branch heads). */
+/* TASC Connect · Visits tab: My visits (allotments and visit reports, with quick filters) · Places · Verify (branch heads). */
 
 async function viewVisits() {
   const me = S.who.me;
@@ -8,7 +8,6 @@ async function viewVisits() {
     return;
   }
   const panes = [
-    { id: 'todo', label: 'To do', badge: 'vn-todo', draw: el => drawTodo(el) },
     { id: 'mine', label: 'My visits', badge: 'vn-mine', draw: el => drawMine(el) },
     { id: 'places', label: 'Places', badge: 'vn-places', draw: el => drawPlaces(el) }
   ];
@@ -20,14 +19,15 @@ async function viewVisits() {
   main.innerHTML = `${S.updateReady ? updateBar() : ''}<div id="v-host"></div>`;
   bindUpdate();
   await loadBasics();
-  mountPager($('#v-host', main), panes, S.cache.vseg || 'todo', id => { S.cache.vseg = id; remember(); });
+  mountPager($('#v-host', main), panes, S.cache.vseg || 'mine', id => { S.cache.vseg = id; remember(); });
   countBadges();
 }
 
 async function countBadges() {
   try {
     const n = (await idb.all()).length;
-    const el = $('#vn-mine'); if (el) el.textContent = n ? ` · ${n}⏳` : '';
+    const od = S.cache.visits ? visitRows().overdue.length : 0;
+    const el = $('#vn-mine'); if (el) el.textContent = (od ? ` · ${od}` : '') + (n ? ` · ${n}⏳` : '');
   } catch (e) { /* no IndexedDB */ }
   if (S.who.me && S.who.me.is_branch_head) {
     const count = qBranchVerify().length;
@@ -35,95 +35,108 @@ async function countBadges() {
   }
 }
 
-/* ───────── To do ───────── */
+/* ───────── My visits: allotments and visit reports in one list ───────── */
 /* My work comes from the phone's copy: no database call. */
 async function loadMyWork() { S.cache.visits = qMyWork(); return S.cache.visits; }
 
-function visitGroups() {
+/* Every row is in exactly one stage: overdue · today · upcoming · hold (allotments not visited yet),
+   visited (report sent, not verified yet) · verified. */
+function visitRows() {
   const { asg, vis, hold, cover } = S.cache.visits;
-  const done = new Set(vis.filter(v => v.assignment_id).map(v => v.assignment_id));
-  if (cover) cover.forEach((c, id) => done.add(id));   // visited by a colleague
   const today = todayISO();
-  const g = { overdue: [], today: [], upcoming: [], done: [], hold: [] };
+  const done = new Set(vis.filter(v => v.assignment_id).map(v => v.assignment_id));
+  const g = { overdue: [], today: [], upcoming: [], hold: [], visited: [], verified: [] };
   for (const a of asg) {
-    if (done.has(a.id)) g.done.push(a);
-    else if (hold && hold.has(a.id)) g.hold.push(a);
-    else if (a.scheduled_on && a.scheduled_on < today) g.overdue.push(a);
-    else if (a.scheduled_on === today) g.today.push(a);
-    else g.upcoming.push(a);
+    if (done.has(a.id)) continue;   // shown by its visit report instead
+    const cv = cover && cover.get(a.id);
+    if (cv) { (cv.status === 'verified' ? g.verified : g.visited).push({ k: 'cover', a, cv, at: cv.visited_at }); continue; }
+    const r = { k: 'asg', a };
+    if (hold && hold.has(a.id)) g.hold.push(r);
+    else if (a.scheduled_on && a.scheduled_on < today) g.overdue.push(r);
+    else if (a.scheduled_on === today) g.today.push(r);
+    else g.upcoming.push(r);
   }
+  for (const v of vis) (v.status === 'verified' ? g.verified : g.visited).push({ k: 'visit', v, at: v.visited_at });
+  g.visited.sort((x, y) => (y.at || '').localeCompare(x.at || ''));
+  g.verified.sort((x, y) => (y.at || '').localeCompare(x.at || ''));
   return g;
 }
 
-async function drawTodo(el, noFetch) {
-  if (!noFetch || !S.cache.visits) await loadMyWork();
-  const g = visitGroups();
-  const f = S.cache.visitFilter && g[S.cache.visitFilter] ? S.cache.visitFilter : (g.overdue.length ? 'overdue' : g.today.length ? 'today' : 'upcoming');
-  S.cache.visitFilter = f;
-  const today = todayISO(); const rows = g[f];
-  const chip = (id, label) => `<button class="chip ${f === id ? 'on' : ''}" data-f="${id}">${label}<b>${g[id].length}</b></button>`;
-  if (!S.cache.visits.asg.length) {
-    el.innerHTML = emptyState(ICON.calendar, 'Nothing allotted to you yet',
-      'When the Regional Office allots visits to you, they show up here with their due dates.',
+const STAGES = [['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['hold', '🔒 On hold'], ['visited', 'Visited'], ['verified', 'Visit Verified']];
+
+function visitRowHTML(r, stage, today) {
+  if (r.k === 'visit') {
+    const v = r.v;
+    return `<button class="item" data-v="${v.id}"><div class="avatar mono" style="font-size:12px">V${v.visit_no}</div>
+      <div class="grow"><div class="t">${esc(v.entity.name)}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}</div></div>
+      <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Awaiting check'}</span></button>`;
+  }
+  const a = r.a;
+  if (r.k === 'cover') return `<button class="item" data-a="${a.id}"><div class="grow"><div class="t">${esc(a.entity.name)}</div>
+      <div class="s">Visited by ${esc(cleanName(r.cv.visitor))} · ${fmtDate(r.cv.visited_at)}</div></div>
+      <span class="badge ${r.cv.status === 'verified' ? 'ok' : 'acc'}">Colleague</span></button>`;
+  const h = stage === 'hold' && S.cache.visits.hold.get(a.id);
+  if (h) return `<button class="item locked" data-a="${a.id}"><div class="lock">${ICON.lock}</div><div class="grow"><div class="t">${esc(a.entity.name)}</div>
+      <div class="s">Asked to ${h.kind === 'reassign' ? 'reassign' : 'remove'} · ${ago(h.created_at)} · waiting for admin</div></div>
+    <span class="badge warn">Request pending</span></button>`;
+  const late = stage === 'overdue' ? daysBetween(a.scheduled_on, today) : 0;
+  return `<button class="item" data-a="${a.id}"><div class="grow"><div class="t">${esc(a.entity.name)}</div>
+      <div class="s">${esc(a.entity.type)}${a.entity.area ? ' · ' + esc(a.entity.area) : ''}</div></div>
+    <div style="text-align:right;flex:none"><div class="mono" style="font-size:13px">${fmtDate(a.scheduled_on)}</div>
+      ${late ? `<span class="badge bad">${late} d late</span>` : stage === 'today' ? '<span class="badge warn">Today</span>' : ''}</div></button>`;
+}
+
+async function drawMine(el, noFetch) {
+  const [, waiting] = await Promise.all([noFetch && S.cache.visits ? null : loadMyWork(), idb.all().catch(() => [])]);
+  const { vis } = S.cache.visits;
+  const g = visitRows(), today = todayISO();
+  const total = STAGES.reduce((n, [k]) => n + g[k].length, 0);
+  if (!total && !waiting.length) {
+    el.innerHTML = emptyState(ICON.calendar, 'Nothing here yet',
+      'Visits the Regional Office allots to you show up here with their due dates, and so do the visit reports you submit.',
       '<button class="btn soft" data-goto="places">Visit a place on your own</button>');
     return;
   }
-  const emptyMsg = { overdue: ['Nothing overdue', 'Well done. Every visit due so far has been logged.'], today: ['Nothing due today', 'Check Upcoming for what is next.'],
-    upcoming: ['Nothing coming up', 'No more allotted visits after today.'], hold: ['Nothing on hold', 'Allotments you asked the admin to reassign or remove wait here, locked, until the admin decides.'], done: ['No allotted visits logged yet', 'Open a place under Overdue, Today or Upcoming and tap Submit Visit Report.'] }[f];
-  el.innerHTML = `
-    <div class="stats">
-      <div class="stat ${g.overdue.length ? 'bad' : ''}"><b>${g.overdue.length}</b><span>Overdue</span></div>
-      <div class="stat warn"><b>${g.today.length + g.upcoming.length}</b><span>Coming up${g.hold.length ? ` · ${g.hold.length} on hold` : ''}</span></div>
-      <div class="stat ok"><b>${g.done.length}</b><span>Visited</span></div>
-    </div>
-    <div class="chips">${chip('overdue', 'Overdue')}${chip('today', 'Today')}${chip('upcoming', 'Upcoming')}${chip('done', 'Visited')}${g.hold.length || f === 'hold' ? chip('hold', '🔒 On hold') : ''}</div>
-    ${rows.length ? `<div class="list">${rows.map(a => {
-      const late = f === 'overdue' ? daysBetween(a.scheduled_on, today) : 0;
-      const h = f === 'hold' && S.cache.visits.hold.get(a.id);
-      if (h) return `<button class="item locked" data-a="${a.id}"><div class="lock">${ICON.lock}</div><div class="grow"><div class="t">${esc(a.entity.name)}</div>
-          <div class="s">Asked to ${h.kind === 'reassign' ? 'reassign' : 'remove'} · ${ago(h.created_at)} · waiting for admin</div></div>
-        <span class="badge warn">Request pending</span></button>`;
-      const cv = f === 'done' && S.cache.visits.cover && S.cache.visits.cover.get(a.id);
-      return `<button class="item" data-a="${a.id}"><div class="grow"><div class="t">${esc(a.entity.name)}</div>
-          <div class="s">${cv ? `Visited by ${esc(cleanName(cv.visitor))} · ${fmtDate(cv.visited_at)}` : esc(a.entity.type) + (a.entity.area ? ' · ' + esc(a.entity.area) : '')}</div></div>
-        <div style="text-align:right;flex:none"><div class="mono" style="font-size:13px">${fmtDate(a.scheduled_on)}</div>
-          ${late ? `<span class="badge bad">${late} d late</span>` : ''}</div></button>`; }).join('')}</div>`
-      : emptyState(f === 'overdue' ? ICON.shield : ICON.calendar, emptyMsg[0], emptyMsg[1])}
-    <div class="spacer"></div>
-    <p class="hint" style="text-align:center">Visiting somewhere not on your list? <button class="linkbtn" data-goto="places">Find or add it in Places</button></p>`;
-  $$('.chip[data-f]', el).forEach(b => b.onclick = () => { S.cache.visitFilter = b.dataset.f; drawTodo(el, true); });
-  $$('[data-a]', el).forEach(b => b.onclick = () => { const a = S.cache.visits.asg.find(x => x.id === b.dataset.a); openPlace(a.entity, a); });
-}
+  let f = S.cache.visitFilter;
+  if (f !== 'all' && !(f && g[f])) f = 'all';
+  S.cache.visitFilter = f;
+  const pill = (id, label, n, cls) => `<button class="chip ${f === id ? 'on' : ''} ${cls || ''}" data-f="${id}">${label}<b>${n}</b></button>`;
+  const pills = pill('all', 'All', total) + STAGES.filter(([k]) => k !== 'hold' || g.hold.length || f === 'hold')
+    .map(([k, l]) => pill(k, l, g[k].length, k === 'overdue' && g.overdue.length && f !== 'overdue' ? 'hot' : '')).join('');
 
-/* ───────── My visits ───────── */
-async function drawMine(el) {
-  const [{ vis }, waiting] = await Promise.all([loadMyWork(), idb.all().catch(() => [])]);
-  const today = todayISO(), soon = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
-  const latestByEntity = new Map();
-  vis.forEach(v => { const c = latestByEntity.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latestByEntity.set(v.entity_id, v); });
-  const due = [...latestByEntity.values()].filter(v => v.followup_on && v.followup_on <= soon && !v.closure).sort((a, b) => a.followup_on.localeCompare(b.followup_on));
-  const ver = vis.filter(v => v.status === 'verified').length;
-  if (!vis.length && !waiting.length) {
-    el.innerHTML = emptyState(ICON.pin, 'No visits logged yet',
-      'Visits you log appear here with their verification status, and follow-ups due show at the top.',
-      '<button class="btn" data-goto="todo">See my allotted visits</button><button class="btn ghost" data-goto="places">Find a place</button>');
-    return;
+  // follow-ups due in the next 7 days (shown in All)
+  const soon = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  const latest = new Map();
+  vis.forEach(v => { const c = latest.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latest.set(v.entity_id, v); });
+  const due = [...latest.values()].filter(v => v.followup_on && v.followup_on <= soon && !v.closure).sort((x, y) => x.followup_on.localeCompare(y.followup_on));
+
+  const list = rows => `<div class="list">${rows.join('')}</div>`;
+  let body;
+  if (f === 'all') {
+    body = STAGES.filter(([k]) => g[k].length).map(([k, l]) =>
+      `<h4 class="dh">${l} · ${g[k].length}</h4>${list(g[k].map(r => visitRowHTML(r, k, today)))}`).join('');
+  } else {
+    const msg = { overdue: ['Nothing overdue', 'Every visit due so far has a report.'], today: ['Nothing due today', 'Check Upcoming for what is next.'],
+      upcoming: ['Nothing coming up', 'No more allotted visits after today.'], hold: ['Nothing on hold', 'Allotments you asked the admin to reassign or remove wait here until the admin decides.'],
+      visited: ['Nothing awaiting a check', 'Reports you submit wait here until they are verified.'], verified: ['No verified visits yet', 'Once checked, your visit reports move here.'] }[f];
+    body = g[f].length ? list(g[f].map(r => visitRowHTML(r, f, today))) : emptyState(f === 'overdue' ? ICON.shield : ICON.calendar, msg[0], msg[1]);
   }
+
   el.innerHTML = `
-    ${waiting.length ? `<h2>Waiting to send (${waiting.length})</h2><div class="list">${waiting.map(w => `<div class="item" style="cursor:default">
+    <div class="chips wrap">${pills}</div>
+    ${waiting.length ? `<h4 class="dh">Waiting to send · ${waiting.length}</h4><div class="list">${waiting.map(w => `<div class="item" style="cursor:default">
         <div class="grow"><div class="t">${esc(w.entityName)}</div><div class="s">${w.error ? `<span style="color:var(--bad)">${esc(w.error)}</span>` : 'Saved on this phone ' + ago(w.savedAt) + '. Sends when online.'}</div></div>
         <button class="btn small ghost" data-wd="${w.id}">Discard</button></div>`).join('')}</div>
       <button class="btn soft block" id="wsend" style="margin-top:8px">Send now</button>` : ''}
-    ${due.length ? `<h2>Follow-ups due</h2><div class="list">${due.map(v => `<button class="item" data-pe="${v.entity_id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
+    ${f === 'all' && due.length ? `<h4 class="dh">Follow-ups due · ${due.length}</h4><div class="list">${due.map(v => `<button class="item" data-pe="${v.entity_id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
         <div class="s">${esc(v.next_step || 'Follow-up')}${v.status !== 'verified' ? ' · Visit ' + v.visit_no + ' awaiting verification' : ''}</div></div>
         <span class="badge ${v.followup_on < today ? 'bad' : v.followup_on === today ? 'warn' : ''}">${fmtDate(v.followup_on)}</span></button>`).join('')}</div>` : ''}
-    <h2>Logged visits</h2>
-    <div class="stats"><div class="stat"><b>${vis.length}</b><span>Logged</span></div><div class="stat ok"><b>${ver}</b><span>Verified</span></div><div class="stat warn"><b>${vis.length - ver}</b><span>Not yet</span></div></div>
-    ${vis.length ? `<div class="list">${vis.map(v => `<button class="item" data-v="${v.id}">
-        <div class="avatar mono" style="font-size:12px">V${v.visit_no}</div>
-        <div class="grow"><div class="t">${esc(v.entity.name)}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}</div></div>
-        <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Submitted'}</span></button>`).join('')}</div>`
-      : '<p class="hint">Nothing sent yet. Saved visits above go out as soon as there is signal.</p>'}`;
+    ${body}
+    <div class="spacer"></div>
+    <p class="hint" style="text-align:center">Visiting somewhere not on your list? <button class="linkbtn" data-goto="places">Find or add it in Places</button></p>`;
+
+  $$('.chip[data-f]', el).forEach(b => b.onclick = () => { S.cache.visitFilter = b.dataset.f; drawMine(el, true); });
+  $$('[data-a]', el).forEach(b => b.onclick = () => { const a = S.cache.visits.asg.find(x => x.id === b.dataset.a); openPlace(a.entity, a); });
   $$('[data-v]', el).forEach(b => b.onclick = () => openVisit(b.dataset.v));
   $$('[data-pe]', el).forEach(b => b.onclick = () => { const v = vis.find(x => x.entity_id === b.dataset.pe); openPlace(v.entity); });
   $$('[data-wd]', el).forEach(b => b.onclick = async () => {
@@ -131,6 +144,7 @@ async function drawMine(el) {
     await idb.del(b.dataset.wd); viewVisits();
   });
   const ws = $('#wsend', el); if (ws) ws.onclick = async () => { ws.disabled = true; await flushOutbox(); viewVisits(); };
+  countBadges();
 }
 
 /* ───────── Verify (branch heads) ───────── */

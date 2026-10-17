@@ -15,7 +15,7 @@ function aboutHTML() {
 
   ${ch('II', 'A visit, start to finish', 'Six steps', `
     <ol class="ab-steps">
-      <li><b>Open</b><span>To do lists your allotted places, overdue first.</span></li>
+      <li><b>Open</b><span>My visits lists your allotted places and reports; tap Overdue or Today to see what is due.</span></li>
       <li><b>Go</b><span>Find on Maps takes you there.</span></li>
       <li><b>Report</b><span>Submit Visit Report: who you met, their banking, the potential and what came of it.</span></li>
       <li><b>Photograph</b><span>Up to four. Photos taken in TASC Connect are stamped and pin the place on the map.</span></li>

@@ -170,6 +170,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 17 | Pull-down emblem spins without the extra ring; clearer message when a request reason is too short | None |
 | 18 | "Log visit" is now "Submit Visit Report" (button, form title, hints) | None |
 | 19 | Fix: deleting failed with *record "old" has no field "visit_id"*. Photos are now removed only after the visit is deleted | Run `sql/08_fix_v18.sql` once |
+| 20 | To do and My visits merged into one **My visits** list with pills: All, Overdue, Today, Upcoming, Visited, Visit Verified (and On hold when any). Big count cards removed | None |
 
 ---
 
