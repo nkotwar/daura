@@ -137,6 +137,8 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 |---|---|---|
 | 1 | Sign-in, profiles, admin people & staff list | `sql/01_schema.sql` + private seed |
 | 2 | Logging visits with photos, follow-ups, closures, places, branch-head and admin verification, requests | Run `sql/03_update_v2.sql` once |
+| 3 | Fix: admins could not submit visits; Update now works | None |
+| 4 | Dashboard for admin and viewers: progress, overdue ageing, business, verification pending, branches, types, officers, follow-ups, photos, WhatsApp nudges, summary image, Excel | None |
 
 ---
 

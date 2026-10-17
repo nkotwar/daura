@@ -1,6 +1,6 @@
 /* Daura · start-up and tab switching. */
 
-const VIEWS = { visits: () => viewVisits(), admin: () => viewAdmin(), profile: () => viewProfile() };
+const VIEWS = { visits: () => viewVisits(), dashboard: () => viewDashboard(), admin: () => viewAdmin(), profile: () => viewProfile() };
 
 function startApp() {
   if (!S.who) return route();
@@ -16,7 +16,7 @@ function startApp() {
 }
 
 function show(tab) {
-  if (!VIEWS[tab] || (tab === 'admin' && !S.who.admin)) tab = 'visits';
+  if (!VIEWS[tab] || (tab === 'admin' && !S.who.admin) || (tab === 'dashboard' && !S.who.viewer)) tab = 'visits';
   S.tab = tab; renderTabs(true);
   $('#main').scrollTop = 0; window.scrollTo(0, 0);
   VIEWS[tab]();
