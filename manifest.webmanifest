@@ -1,6 +1,6 @@
 {
-  "name": "Daura",
-  "short_name": "Daura",
+  "name": "TASC Connect",
+  "short_name": "TASC Connect",
   "description": "Visit tracking for Udaipur RO",
   "start_url": "./",
   "scope": "./",

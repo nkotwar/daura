@@ -1,6 +1,6 @@
-/* Daura · navigation feel.
+/* TASC Connect · navigation feel.
    1. Swipe left/right inside a tab to move between its sections (To do · My visits · Places …).
-   2. Back button: closes an open panel → returns to the first section → returns to the first tab → asks before closing Daura. */
+   2. Back button: closes an open panel → returns to the first section → returns to the first tab → asks before closing TASC Connect. */
 
 /* ───────── sections as one continuous strip ─────────
    All sections of a tab sit side by side. The strip follows your finger 1:1, the neighbour slides in,
@@ -63,6 +63,7 @@ function mountPager(host, panes, activeId, onChange) {
   // Redraw the sections already loaded, keeping what is on screen until the new content is ready.
   host._pager = {
     ids: panes.map(p => p.id).join(','),
+    go: id => { const k = panes.findIndex(p => p.id === id); if (k >= 0 && k !== i) goTo(k); },
     refresh: () => Promise.all([...loaded.keys()].map(k => Promise.resolve().then(() => panes[k].draw(els[k])).catch(() => {}))).then(fit)
   };
 
@@ -123,10 +124,10 @@ window.addEventListener('popstate', async () => {
   if (S.tab !== first) { show(first); keep(); return; }
   // 4. ask before closing
   keep();
-  if (await confirmSheet('Close Daura?', 'Anything waiting to send stays saved on this phone.', 'Close')) {
+  if (await confirmSheet('Close TASC Connect?', 'Anything waiting to send stays saved on this phone.', 'Close')) {
     NAV.armed = false;
     try { window.close(); } catch (e) { /* not allowed here */ }
-    history.back();                       // step off the app's extra history entry: the next back press leaves Daura
+    history.back();                       // step off the app's extra history entry: the next back press leaves TASC Connect
     setTimeout(() => toast('Press back once more to close'), 300);
   }
 });

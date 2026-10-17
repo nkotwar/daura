@@ -1,4 +1,4 @@
-/* Daura · core: shared state, Supabase client, small UI helpers.
+/* TASC Connect · core: shared state, Supabase client, small UI helpers.
    The app is split into plain scripts that share one global scope; index.html loads them in order. */
 
 const S = {
@@ -180,8 +180,8 @@ const roleLabel = r => ({ field: 'Field staff', viewer: 'Viewer', admin: 'Admin'
 
 function header() {
   const me = S.who && S.who.me;
-  $('#top').innerHTML = `<div class="brand"><button class="brand-btn" data-about aria-label="About Daura"><img src="icon-192.png" alt=""></button><div><h1>Daura</h1>
-      <div class="sub">दौरा · Udaipur RO visits</div></div></div>
+  $('#top').innerHTML = `<div class="brand"><button class="brand-btn" data-about aria-label="About TASC Connect"><img src="icon-192.png" alt=""></button><div><h1>TASC Connect</h1>
+      <div class="sub">Udaipur RO · institution visits</div></div></div>
     ${me ? `<div class="who"><b>${esc(cleanName(me.name))}</b>${esc(me.branch || '')}</div>` : ''}`;
 }
 

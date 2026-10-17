@@ -1,4 +1,4 @@
-/* Daura · places (search, add new), a place's page with its visit history, and a visit's full view. */
+/* TASC Connect · places (search, add new), a place's page with its visit history, and a visit's full view. */
 
 /* Places come from the phone's copy. */
 async function loadEntities() { return all('entities').sort((a, b) => a.name.localeCompare(b.name)); }
@@ -41,7 +41,7 @@ async function openNewPlace(prefill = '') {
     const t = $('#np-n', body).value.trim().toLowerCase();
     const words = t.split(/\s+/).filter(w => w.length > 2);
     const hits = t.length < 4 ? [] : list.filter(e => words.every(w => e.name.toLowerCase().includes(w))).slice(0, 5);
-    $('#np-dup', body).innerHTML = hits.length ? `<div class="note warn" style="margin-top:8px">Already in Daura? Tap it instead of adding again:
+    $('#np-dup', body).innerHTML = hits.length ? `<div class="note warn" style="margin-top:8px">Already in TASC Connect? Tap it instead of adding again:
       <div class="list" style="margin-top:8px">${hits.map(e => `<button class="item" data-open="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div><div class="s">${esc(e.type)} · ${esc(e.area || '')}</div></div></button>`).join('')}</div></div>` : '';
     $$('[data-open]', body).forEach(b => b.onclick = () => openPlace(list.find(e => e.id === b.dataset.open)));
   };

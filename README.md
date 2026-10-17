@@ -1,6 +1,6 @@
-# Daura (दौरा)
+# TASC Connect
 
-Visit tracking for Udaipur RO: assigned visits, visit reports with geotagged photos, follow-ups, branch-head verification and an admin dashboard.
+Visit tracking for TASC (Trusts, Associations, Societies, Clubs) at Udaipur RO: assigned visits, visit reports with geotagged photos, follow-ups, branch-head verification and an admin dashboard.
 
 - App: plain HTML/CSS/JS PWA on GitHub Pages. No build step.
 - Data, Google sign-in and photos: Supabase (Mumbai), protected by row-level security.

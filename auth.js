@@ -1,4 +1,4 @@
-/* Daura · sign-in with Google, then "who are you" (match by email, or name + date of birth).
+/* TASC Connect · sign-in with Google, then "who are you" (match by email, or name + date of birth).
    Google proves the Gmail. The database decides which employee that Gmail belongs to. */
 
 let googleNonce = null;
@@ -22,7 +22,7 @@ function screenSignIn(note) {
   header(); renderTabs(false);
   $('#main').innerHTML = `<div class="hero">
       <img src="icon-192.png" alt="">
-      <h1>Daura</h1><div class="dev">दौरा · visits, tracked</div>
+      <h1>TASC Connect</h1><div class="dev">Trusts · Associations · Societies · Clubs</div>
       <p>Your assigned visits, visit reports with photos, and follow-ups, in one place.</p>
     </div>
     ${note ? `<div class="note ${note.kind || ''}" style="margin-top:12px">${note.html}</div>` : ''}
@@ -98,13 +98,13 @@ async function enterApp(who) {
   S.who = who;
   $('#main').innerHTML = '<div class="spin"></div><p class="hint" style="text-align:center">Getting your visits ready…</p>';
   try { await syncNow({ full: true }); S.who = DB.who || who; } catch (e) { /* opens with what there is; pull to retry */ }
-  toast('Welcome to Daura');
+  toast('Welcome to TASC Connect');
   startApp();
 }
 
 function screenOffline(e) {
   header(); renderTabs(false);
-  $('#main').innerHTML = `<div class="empty">${ICON.pin}<p><b>Can't reach Daura right now.</b><br>${esc(errText(e))}</p>
+  $('#main').innerHTML = `<div class="empty">${ICON.pin}<p><b>Can't reach TASC Connect right now.</b><br>${esc(errText(e))}</p>
     <button class="btn" id="retry">Try again</button></div>`;
   $('#retry').onclick = () => { $('#main').innerHTML = '<div class="spin"></div>'; route(); };
 }

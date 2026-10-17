@@ -1,4 +1,4 @@
-/* Daura · photos: shrink on the phone, read GPS/time from uploaded photos, stamp live photos.
+/* TASC Connect · photos: shrink on the phone, read GPS/time from uploaded photos, stamp live photos.
    Visually lossless: 1600 px on the long side, JPEG quality 0.82 → about 200–350 KB each. */
 
 const PHOTO_MAX = 4;
@@ -59,7 +59,7 @@ async function processPhoto(file, stamp) {
   let bmp;
   try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch (e) {
-    bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('That file is not a photo Daura can read.')); i.src = URL.createObjectURL(file); });
+    bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('That file is not a photo TASC Connect can read.')); i.src = URL.createObjectURL(file); });
   }
   const sw = bmp.width, sh = bmp.height, k = Math.min(1, PHOTO_EDGE / Math.max(sw, sh));
   const w = Math.round(sw * k), h = Math.round(sh * k);
@@ -90,7 +90,7 @@ function drawStamp(x, w, h, s) {
   });
   x.font = `600 ${Math.round(fs * 0.8)}px "IBM Plex Sans", system-ui, sans-serif`;
   x.fillStyle = 'rgba(255,255,255,0.75)'; x.textAlign = 'right';
-  x.fillText('Daura · via PDUDAIRO', w - pad, h - bandH + pad);
+  x.fillText('TASC Connect · via PDUDAIRO', w - pad, h - bandH + pad);
   x.textAlign = 'left';
 }
 

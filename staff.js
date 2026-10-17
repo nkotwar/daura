@@ -1,4 +1,4 @@
-/* Daura · one staff member's work: summary numbers, every place allotted to them with its current status,
+/* TASC Connect · one staff member's work: summary numbers, every place allotted to them with its current status,
    and their own (self-initiated) visits. Used in Admin → People and Dashboard → Officers. */
 
 async function loadStaffWork(el, emp) {

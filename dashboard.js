@@ -1,4 +1,4 @@
-/* Daura · Dashboard (admin and viewers). Everything is worked out on the phone from the live data:
+/* TASC Connect · Dashboard (admin and viewers). Everything is worked out on the phone from the live data:
    completion, overdue ageing, delays, business, verification pending with each branch head, officers, photos.
    Plus WhatsApp nudges, Excel export and a shareable summary image. */
 
@@ -152,7 +152,7 @@ async function viewDashboard(force = false) {
 
     <div class="card"><h3>Waiting for verification</h3>
       ${M.verifiers.length ? `<div class="list">${M.verifiers.map(x => {
-        const wa = x.phone && waLink(x.phone, `Dear ${x.name}, ${x.n} visit${x.n > 1 ? 's' : ''} by your branch staff ${x.n > 1 ? 'are' : 'is'} waiting for your verification in Daura (Visits → Verify). Kindly check and verify: ${daoraLink()}`);
+        const wa = x.phone && waLink(x.phone, `Dear ${x.name}, ${x.n} visit${x.n > 1 ? 's' : ''} by your branch staff ${x.n > 1 ? 'are' : 'is'} waiting for your verification in TASC Connect (Visits → Verify). Kindly check and verify: ${daoraLink()}`);
         return `<div class="item" style="cursor:default"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${esc(x.branch || '')} · oldest ${ago(x.oldest)}</div></div>
           <span class="badge warn">${x.n}</span>${nudgeBtns(wa, x.phone && telLink(x.phone))}</div>`; }).join('')}</div>` : '<p class="hint">Nothing waiting.</p>'}
     </div>
@@ -220,7 +220,7 @@ function hbars(pairs, cls = '') {
 const nudgeBtns = (wa, tel) => `${wa ? `<a class="nb wa" href="${wa}" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp">${ICON.wa}</a>` : ''}${tel ? `<a class="nb" href="${tel}" title="Call" aria-label="Call">${ICON.phone}</a>` : ''}`;
 function overdueMsg(o) {
   const list = o.pending.slice(0, 5).map(r => `• ${r.a.entity.name} (due ${fmtDate(r.a.scheduled_on)})`).join('\n');
-  return `Dear ${o.name}, ${o.overdue} visit${o.overdue > 1 ? 's' : ''} allotted to you ${o.overdue > 1 ? 'are' : 'is'} pending in Daura:\n${list}${o.overdue > 5 ? `\n…and ${o.overdue - 5} more` : ''}\nKindly complete and update: ${daoraLink()}\n– Regional Office, Udaipur`;
+  return `Dear ${o.name}, ${o.overdue} visit${o.overdue > 1 ? 's' : ''} allotted to you ${o.overdue > 1 ? 'are' : 'is'} pending in TASC Connect:\n${list}${o.overdue > 5 ? `\n…and ${o.overdue - 5} more` : ''}\nKindly complete and update: ${daoraLink()}\n– Regional Office, Udaipur`;
 }
 function offRows(M) {
   const list = S.cache.offF === 'all' ? M.byOff : M.byOff.filter(o => o.overdue);
@@ -283,7 +283,7 @@ async function summaryImage(M, f, D) {
   // header
   const logo = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = 'icon-192.png'; });
   if (logo) x.drawImage(logo, 60, 50, 76, 76);
-  txt('Daura · Visit report', 156, 92, { f: sans(700, 42) });
+  txt('TASC Connect · Visit report', 156, 92, { f: sans(700, 42) });
   const scope = [f.camp && (D.camps.find(cc => cc.id === f.camp) || {}).name, f.type, f.branch && M.bname.get(f.branch)].filter(Boolean).join(' · ') || 'All visits';
   txt(`Udaipur RO · ${scope}`, 156, 128, { f: sans(400, 26), c: P.muted });
   txt(new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }), W - 60, 92, { f: sans(500, 24), c: P.muted, a: 'right' });
@@ -331,12 +331,12 @@ async function summaryImage(M, f, D) {
   const tot = br.reduce((t, b) => ({ name: 'Total', total: t.total + b.total, visited: t.visited + b.visited, overdue: t.overdue + b.overdue, tmr: t.tmr + b.tmr }), { total: 0, visited: 0, overdue: 0, tmr: 0 });
   rt(tot, y + ROW - 10, true);
   // footer
-  txt('Daura · Built by Nitin Kotwar (139535), via PDUDAIRO', W / 2, H - 44, { f: sans(500, 22), c: P.faint, a: 'center' });
+  txt('TASC Connect · Built by Nitin Kotwar (139535), via PDUDAIRO', W / 2, H - 44, { f: sans(500, 22), c: P.faint, a: 'center' });
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-  const name = `Daura-summary-${todayISO()}.png`;
+  const name = `TASC-Connect-summary-${todayISO()}.png`;
   const file = new File([blob], name, { type: 'image/png' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: 'Daura visit report' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.share({ files: [file], title: 'TASC Connect visit report' }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
@@ -380,6 +380,6 @@ async function exportExcel(M, D) {
   add(visits, 'Visits', [40, 20, 16, 8, 26, 9, 18, 18, 18, 9, 22, 18, 12, 14, 16, 10, 12, 13, 40, 18, 40, 30, 13, 15, 22, 14, 11, 18, 22]);
   add(offs, 'Officers', [28, 9, 20, 9, 9, 9, 10, 14, 8]);
   add(brs, 'Branches', [26, 9, 9, 9, 9, 11, 8]);
-  XLSX.writeFile(wb, `Daura-${todayISO()}.xlsx`);
+  XLSX.writeFile(wb, `TASC-Connect-${todayISO()}.xlsx`);
   toast('Excel downloaded');
 }

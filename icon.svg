@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#146CC0"/><path d="M118 392c40-6 62-30 92-30s52 24 92 24 62-22 92-28" fill="none" stroke="#D20838" stroke-width="22" stroke-linecap="round" stroke-dasharray="2 44"/><path d="M256 360s-96-86-96-160a96 96 0 0 1 192 0c0 74-96 160-96 160z" fill="#fff"/><circle cx="256" cy="198" r="38" fill="#146CC0"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<rect width="512" height="512" rx="112" fill="#146CC0"/><path d="M150 150 H 362 V 362 H 150 Z" fill="none" stroke="#FFFFFF" stroke-opacity="0.4" stroke-width="10" stroke-dasharray="4 22" stroke-linecap="round"/>
+<path d="M150 150 L 362 362 M 362 150 L 150 362" fill="none" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round"/>
+<circle cx="150" cy="150" r="46" fill="#FFFFFF"/><circle cx="362" cy="150" r="46" fill="#FFFFFF"/><circle cx="362" cy="362" r="46" fill="#FFFFFF"/><circle cx="150" cy="362" r="46" fill="#FFFFFF"/>
+<g font-family="'IBM Plex Sans', 'Segoe UI', Roboto, Arial, sans-serif" font-weight="700" font-size="46" fill="#146CC0" text-anchor="middle"><text x="150" y="166">T</text><text x="362" y="166">A</text><text x="362" y="378">S</text><text x="150" y="378">C</text></g>
+<circle cx="256" cy="256" r="50" fill="#D20838"/><circle cx="256" cy="256" r="20" fill="#FFFFFF"/></svg>

@@ -1,4 +1,4 @@
-/* Daura · Admin tab: people and their Gmails, roles, blocking; verifying visits; the requests queue;
+/* TASC Connect · Admin tab: people and their Gmails, roles, blocking; verifying visits; the requests queue;
    the staff list (udairo.js upload) and photo storage; the activity feed. The dashboard arrives next. */
 
 const admPane = id => $(`#main > .tabview[data-tab="admin"] .pane[data-pane="${id}"]`) || document.createElement('div');
@@ -165,7 +165,7 @@ function openPerson(emp) {
     </dl>
     ${phone.length === 10 ? `<div class="row" style="margin-top:14px">
       <a class="btn soft grow" href="tel:+91${phone}">${ICON.phone} Call</a>
-      <a class="btn soft grow" target="_blank" rel="noopener" href="https://wa.me/91${phone}?text=${encodeURIComponent(`Dear ${cleanName(p.name)}, please sign in to Daura with your Gmail: ${location.origin + location.pathname}`)}">${ICON.wa} Invite on WhatsApp</a></div>` : ''}
+      <a class="btn soft grow" target="_blank" rel="noopener" href="https://wa.me/91${phone}?text=${encodeURIComponent(`Dear ${cleanName(p.name)}, please sign in to TASC Connect with your Gmail: ${location.origin + location.pathname}`)}">${ICON.wa} Invite on WhatsApp</a></div>` : ''}
 
     <h2>Visits</h2><div id="sw"></div>
     <h2>Gmails</h2>
@@ -204,7 +204,7 @@ function openPerson(emp) {
   };
   const blk = $('#blk', body);
   if (blk) blk.onclick = async () => {
-    if (!p.blocked && !await confirmSheet('Block this person?', `${esc(cleanName(p.name))} loses access to Daura at once, on every device, until you unblock them. Their visits stay.`, 'Block', true)) return openPerson(emp);
+    if (!p.blocked && !await confirmSheet('Block this person?', `${esc(cleanName(p.name))} loses access to TASC Connect at once, on every device, until you unblock them. Their visits stay.`, 'Block', true)) return openPerson(emp);
     try { await rpc('admin_set_blocked', { p_emp: emp, p_blocked: !p.blocked }); await refresh(p.blocked ? 'Unblocked' : 'Blocked'); } catch (e) { toast(errText(e)); }
   };
 }
@@ -243,7 +243,7 @@ async function admStaff() {
     let D;
     try { D = new Function(text + ';return UDAIRO_DATA;')(); } catch (err) { toast('Could not read that file.'); return; }
     if (!D || !Array.isArray(D.branches)) { toast('That file has no branches in it.'); return; }
-    // Send only what Daura needs (no DOJ, FTP, etc.).
+    // Send only what TASC Connect needs (no DOJ, FTP, etc.).
     const slim = { branches: D.branches.map(b => ({ branchCode: b.branchCode, branchName: b.branchName, lat: b.lat, lng: b.lng, mobile: b.mobile, size: b.size,
       staff: (b.staff || []).map(s => ({ empId: s.empId, name: s.name, designation: s.designation, grade: s.grade, phone: s.phone, email: s.email, dob: s.dob, dept: s.dept, secondInCommand: !!s.secondInCommand })) })) };
     const incoming = new Map(slim.branches.flatMap(b => b.staff.map(s => [s.empId, { ...s, branch: b.branchName }])));
@@ -281,6 +281,7 @@ const ACT = {
   role_set: (a) => `made ${esc(cleanName(a.target_name || a.target))} ${roleLabel(a.detail?.role).toLowerCase()}`,
   person_blocked: (a) => `blocked ${esc(cleanName(a.target_name || a.target))}`,
   person_unblocked: (a) => `unblocked ${esc(cleanName(a.target_name || a.target))}`,
+  visit_logged: (a) => `logged visit ${esc(a.detail?.visit_no || '')} at ${esc(a.detail?.entity || 'a place')}`,
   visit_verified: () => 'verified a visit',
   visit_unverified: () => 'unverified a visit',
   request_raised: (a) => `raised a ${String(a.detail?.kind || '').replace('_', ' ')} request`,

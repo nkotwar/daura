@@ -1,4 +1,4 @@
-/* Daura · the phone's own copy of the data.
+/* TASC Connect · the phone's own copy of the data.
    · One call, sync(since), brings only what changed since the last time (or everything, the first time).
    · The copy is saved on the phone (IndexedDB), so screens open instantly and work with weak signal.
    · It syncs when the app opens, when you come back after 2+ minutes, and on pull-to-refresh.

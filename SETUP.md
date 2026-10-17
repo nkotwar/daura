@@ -1,4 +1,4 @@
-# Daura: setup
+# TASC Connect: setup
 
 About 30 minutes, once. Everything here is free. You need a computer for steps 1–5; after that, everything is on the phone.
 
@@ -8,9 +8,9 @@ What goes where:
 |---|---|---|
 | The app | GitHub Pages (public repo `daura`) | Code only. **No staff data, ever.** |
 | Data, sign-in, photos | Supabase (Mumbai) | Staff list, places, visits, photos |
-| "Sign in with Google" | Google Cloud project **Daura** (new, separate from Hazri) | Nothing, it only proves the Gmail |
+| "Sign in with Google" | Google Cloud project **TASC Connect** (new, separate from Hazri) | Nothing, it only proves the Gmail |
 
-Hazri is not touched: Daura uses no Firebase, a different Google Cloud project and a different repo.
+Hazri is not touched: TASC Connect uses no Firebase, a different Google Cloud project and a different repo.
 
 You have two SQL files:
 
@@ -43,15 +43,15 @@ Both files are safe to run again if something stops halfway.
 
 ## 3. Create the Google sign-in (new project, not Hazri's)
 
-1. Go to **console.cloud.google.com**. In the project picker at the top, choose **New project**, name it `Daura`, then **Create**. Make sure **Daura** is selected at the top before going on.
+1. Go to **console.cloud.google.com**. In the project picker at the top, choose **New project**, name it `TASC Connect`, then **Create**. Make sure **TASC Connect** is selected at the top before going on.
 2. Search for **Google Auth Platform** and open it → **Get started**:
-   - App name: `Daura`. User support email: your Gmail.
+   - App name: `TASC Connect`. User support email: your Gmail.
    - Audience: **External**.
    - Contact email: your Gmail. Agree, then **Create**.
 3. **Audience** (left menu) → **Publish app** → **Confirm**. The status becomes **In production**.
-   - Daura only asks for name and email, so Google needs no review, there's no 100-user limit, and no weekly re-login.
+   - TASC Connect only asks for name and email, so Google needs no review, there's no 100-user limit, and no weekly re-login.
 4. **Clients** (left menu) → **Create client**:
-   - Application type: **Web application**. Name: `Daura web`.
+   - Application type: **Web application**. Name: `TASC Connect web`.
    - **Authorised JavaScript origins** → **Add URI** → enter exactly `https://nkotwar.github.io` (no `/daura`, no slash at the end).
    - Leave **Authorised redirect URIs** empty → **Create**.
 5. Copy both the **Client ID** (ends in `.apps.googleusercontent.com`) and the **Client secret**.
@@ -65,7 +65,7 @@ In Supabase:
    - **Client IDs**: paste the Client ID.
    - **Client Secret**: paste the secret.
    - Leave **Skip nonce checks** off → **Save**.
-3. **Email** → turn **Enable Email provider** **off** → **Save**. Daura must only accept Google sign-in; that is part of how it knows who is who.
+3. **Email** → turn **Enable Email provider** **off** → **Save**. TASC Connect must only accept Google sign-in; that is part of how it knows who is who.
 4. On the same page, check that **Allow new users to sign up** is **on**. Staff are created the first time they sign in with Google.
 5. Copy two things:
    - **Project URL**: Project Settings → **Data API** (looks like `https://abcd1234.supabase.co`).
@@ -86,7 +86,7 @@ These three are meant to be public. What protects the data is the database's acc
 ## 5. Put the app on GitHub Pages
 
 1. On github.com, click **+ → New repository**. Name it `daura`, set it to **Public** → **Create repository**.
-2. Click **uploading an existing file** and drag in everything from the Daura folder **except** the private SQL file:
+2. Click **uploading an existing file** and drag in everything from the TASC Connect folder **except** the private SQL file:
    - `index.html`, `styles.css`, `config.js` (filled in), `version.js`
    - `core.js`, `auth.js`, `visits.js`, `profile.js`, `admin.js`, `main.js`, `sw.js`
    - `manifest.webmanifest`, `icon.svg`, `icon-192.png`, `icon-512.png`, `icon-maskable-192.png`, `icon-maskable-512.png`, `cbi-emblem.png`
@@ -101,9 +101,9 @@ Supabase pauses a free project after 7 days without use. A small GitHub job ping
 
 1. In the repo: **Add file → Create new file**.
 2. For the name, type exactly `.github/workflows/keepalive.yml` (typing the `/` creates the folders).
-3. Paste the contents of `keepalive.yml` from the Daura folder → **Commit changes**.
+3. Paste the contents of `keepalive.yml` from the TASC Connect folder → **Commit changes**.
 4. **Settings → Actions → General → Workflow permissions** → **Read and write permissions** → **Save**.
-5. **Actions** tab → **Keep Daura awake** → **Run workflow**. In about 30 seconds it should show a green tick.
+5. **Actions** tab → **Keep TASC Connect awake** → **Run workflow**. In about 30 seconds it should show a green tick.
 
 The job also writes the date into `.github/keepalive.txt`. That keeps the repo active, because GitHub switches off scheduled jobs after 60 days without activity. If GitHub ever emails that the workflow was disabled, open Actions and click **Enable workflow**.
 
@@ -112,6 +112,23 @@ The job also writes the date into `.github/keepalive.txt`. That keeps the repo a
 1. Open `https://nkotwar.github.io/daura/` in Chrome → menu ⋮ → **Add to Home screen / Install app**.
 2. Open it from the home-screen icon → **Sign in with Google** → choose **nkotwar@gmail.com**. You land straight in, as admin.
 3. **Admin → People**: everyone is listed, with who has signed up. Tap anyone for **Call** or **Invite on WhatsApp**.
+
+## 8. Admin notifications (optional)
+
+Get a notification on your phone when staff log a visit, raise a request, and so on. Only admins can turn these on. You were sent a private file, **TASC-Connect-push-secrets-PRIVATE.txt**, with the three secret values; keep it out of GitHub.
+
+1. **SQL Editor → New query**: paste `sql/07_update_v16.sql` → **Run**.
+2. **Edge Functions → Deploy a new function → Via Editor**. Name it `push-activity`. Replace the sample code with everything in `supabase/functions/push-activity/index.ts` → **Deploy function**.
+3. Open the function → **Details** (or Settings) → turn **off** "Verify JWT with legacy secret" (or "Enforce JWT verification") → **Save**. The function checks its own secret instead.
+4. **Edge Functions → Secrets → Add new secret**, three times, copying from the private file: `VAPID_PRIVATE_KEY`, `HOOK_SECRET`, `PUSH_CONTACT`.
+5. **Database → Webhooks** (enable webhooks if asked) → **Create a new hook**:
+   - Name `push_activity` · Table `activity_log` · Events: **Insert** only
+   - Type: **Supabase Edge Functions** → `push-activity` · Method POST · Timeout 5000
+   - HTTP Headers → **Add a new header**: `x-hook-secret` = your HOOK_SECRET value
+   - **Create webhook**
+6. On your phone (installed app): **Profile → Notifications** → pick the kinds → **Turn on** → Allow. On iPhone, add TASC Connect to the Home Screen first and open it from there.
+
+Each phone is set separately. If nothing arrives: Edge Functions → push-activity → **Logs** shows each send; a 403 there means the x-hook-secret header doesn't match the secret.
 
 ## How staff get in
 
@@ -149,6 +166,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 13 | Faster, smoother: tabs stay built and refresh quietly, filters don't reload, panels swap content in place | None |
 | 14 | Place page always shows who it is allotted to for admin (even before the database update), with a reminder if staff can't see it yet | Run `sql/05_update_v12.sql` if not done |
 | 15 | The phone keeps its own copy and syncs only what changed (on open, on return after 2+ min, on pull); your changes go straight into the copy. Hazri-style pull loader; About field guide | Run `sql/06_update_v15.sql` once (after 04 and 05) |
+| 16 | New name **TASC Connect** and logo (also on the summary image, Excel and photo stamps). Admin notifications of activity; new visits now show in Activity | Run `sql/07_update_v16.sql`, then section 8 if you want notifications |
 
 ---
 

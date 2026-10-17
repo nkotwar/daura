@@ -1,4 +1,4 @@
-/* Daura · small shared helpers and the "waiting to send" outbox. Staff names and settings come from the phone's copy (store.js).
+/* TASC Connect · small shared helpers and the "waiting to send" outbox. Staff names and settings come from the phone's copy (store.js).
    A visit saved without signal stays on the phone (IndexedDB, photos included) and is sent when the network returns. */
 
 const personName = emp => { const p = S.dir && S.dir.get(emp); return p ? cleanName(p.name) : (emp ? 'Emp ' + emp : '—'); };

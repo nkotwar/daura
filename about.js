@@ -1,24 +1,24 @@
-/* Daura · About: a short field guide (opens from the logo in the header, or Profile → About Daura). */
+/* TASC Connect · About: a short field guide (opens from the logo in the header, or Profile → About TASC Connect). */
 
 function aboutHTML() {
   const ch = (n, kicker, title, body) => `<section class="ab-ch"><div class="ab-num">${n}</div><div class="ab-body"><div class="ab-kicker">${kicker}</div><h3>${title}</h3>${body}</div></section>`;
   return `<article class="ab">
   <header class="ab-hero">
     <img src="icon-192.png" alt="" class="ab-icon">
-    <h2>Daura</h2>
+    <h2>TASC Connect</h2>
     <p class="ab-dek">A short field guide to visiting the places allotted to you, and keeping a record of every visit.</p>
   </header>
 
   ${ch('I', 'The idea', 'Every allotted place, visited and on record', `
-    <p class="ab-lede">Daura holds the list of places the Regional Office wants visited: hospitals, schools, trusts, places of worship and any you add yourself. Each is allotted to someone with a date. You go, you log what happened with a few photos, your branch head checks it, and the Regional Office sees the whole region at a glance.</p>
-    <blockquote>One visit leads to the next. Set a follow-up date and Daura reminds you.</blockquote>`)}
+    <p class="ab-lede">TASC Connect holds the list of places the Regional Office wants visited: hospitals, schools, trusts, places of worship and any you add yourself. Each is allotted to someone with a date. You go, you log what happened with a few photos, your branch head checks it, and the Regional Office sees the whole region at a glance.</p>
+    <blockquote>One visit leads to the next. Set a follow-up date and TASC Connect reminds you.</blockquote>`)}
 
   ${ch('II', 'A visit, start to finish', 'Six steps', `
     <ol class="ab-steps">
       <li><b>Open</b><span>To do lists your allotted places, overdue first.</span></li>
       <li><b>Go</b><span>Find on Maps takes you there.</span></li>
       <li><b>Log</b><span>Who you met, their banking, the potential and what came of it.</span></li>
-      <li><b>Photograph</b><span>Up to four. Photos taken in Daura are stamped and pin the place on the map.</span></li>
+      <li><b>Photograph</b><span>Up to four. Photos taken in TASC Connect are stamped and pin the place on the map.</span></li>
       <li><b>Verify</b><span>Your branch head checks it. Branch heads' and RO visits go to the Regional Office.</span></li>
       <li><b>Follow up</b><span>Once verified, add Visit 2, 3… or close it: account opened, rejected or not feasible.</span></li>
     </ol>`)}
@@ -60,7 +60,7 @@ function aboutHTML() {
       <li>Signing out removes your copy from this phone.</li>
     </ul>`)}
 
-  <footer class="ab-foot"><img src="cbi-emblem.png" alt=""><div>Daura · version ${APP_VERSION}<br>Built by Nitin Kotwar (139535), via PDUDAIRO</div></footer>
+  <footer class="ab-foot"><img src="cbi-emblem.png" alt=""><div>TASC Connect · version ${APP_VERSION}<br>Built by Nitin Kotwar (139535), via PDUDAIRO</div></footer>
   </article>`;
 }
 

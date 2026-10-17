@@ -1,4 +1,4 @@
-/* Daura · Visits tab: To do (your allotments) · My visits (logged, follow-ups, waiting to send) · Places · Verify (branch heads). */
+/* TASC Connect · Visits tab: To do (your allotments) · My visits (logged, follow-ups, waiting to send) · Places · Verify (branch heads). */
 
 async function viewVisits() {
   const me = S.who.me;

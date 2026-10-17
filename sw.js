@@ -1,4 +1,4 @@
-/* Daura service worker. Network first, so a new upload shows up on the next open; the saved copy is used only offline.
+/* TASC Connect service worker. Network first, so a new upload shows up on the next open; the saved copy is used only offline.
    Data always comes live from the server. */
 importScripts('version.js');
 const CACHE = 'daura-v' + APP_VERSION;
@@ -18,4 +18,21 @@ self.addEventListener('fetch', e => {
       .then(r => { if (r.ok && !u.searchParams.has('t')) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; })
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then(r => r || caches.match('index.html')))
   );
+});
+
+/* Admin notifications: show them, and open the right screen when tapped. */
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data && e.data.text() }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'TASC Connect', {
+    body: d.body || '', tag: d.tag, data: { url: d.url || './' }, icon: 'icon-192.png', badge: 'icon-192.png'
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
+    const c = cs.find(w => w.url.startsWith(self.registration.scope));
+    if (c) { c.postMessage({ deeplink: url }); return c.focus(); }
+    return self.clients.openWindow(url);
+  }));
 });

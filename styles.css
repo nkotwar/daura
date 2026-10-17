@@ -99,6 +99,7 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
 .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin:10px 0;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer;color:var(--muted)}
 .chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .chip b{font-family:var(--mono);margin-left:4px;opacity:.75}

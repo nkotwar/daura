@@ -1,4 +1,4 @@
-/* Daura · Profile tab: who you are, which Gmails open your profile, sign out, app version. */
+/* TASC Connect · Profile tab: who you are, which Gmails open your profile, sign out, app version. */
 
 async function viewProfile() {
   const me = S.who.me;
@@ -10,9 +10,10 @@ async function viewProfile() {
       : `<div class="card"><h3>Admin</h3><p class="muted">Signed in as ${esc(S.who.gmail)} without a staff profile.</p></div>`}
     ${me ? `<h2>Gmails that open your profile</h2><div id="logins"><div class="spin" style="margin:16px auto"></div></div>
     <p class="hint">If you see a Gmail here that isn't yours, remove it and tell the Regional Office.</p>` : ''}
-    <h2>Daura</h2>
+    ${S.who.admin ? `<h2>Notifications</h2><div id="pushbox"><div class="spin" style="margin:16px auto"></div></div>` : ''}
+    <h2>TASC Connect</h2>
     <div class="list">
-      <button class="item" data-about><div class="grow"><div class="t">About Daura</div><div class="s">A short field guide</div></div><span class="chev">${ICON.chev}</span></button>
+      <button class="item" data-about><div class="grow"><div class="t">About TASC Connect</div><div class="s">A short field guide</div></div><span class="chev">${ICON.chev}</span></button>
       <div class="item" style="cursor:default"><div class="grow"><div class="t">Synced ${syncedAgo()}</div><div class="s">Pull down at the top of any tab to sync now</div></div>
         <button class="btn small ghost" id="syncnow">Sync</button></div>
     </div>
@@ -21,7 +22,7 @@ async function viewProfile() {
       <button class="btn ghost block" id="so">${ICON.logout} Sign out on this phone</button>
       <button class="btn ghost block" id="soall">Sign out on all devices</button>
     </div>
-    <div class="foot"><img src="cbi-emblem.png" alt="">Daura · version ${APP_VERSION}<br>Built by Nitin Kotwar (139535), via PDUDAIRO</div>`;
+    <div class="foot"><img src="cbi-emblem.png" alt="">TASC Connect · version ${APP_VERSION}<br>Built by Nitin Kotwar (139535), via PDUDAIRO</div>`;
   $('#so').onclick = async () => { if (await confirmSheet('Sign out?', 'You can sign in again any time with Google.', 'Sign out')) signOut('local'); };
   $('#soall').onclick = async () => {
     if (await confirmSheet('Sign out everywhere?', `Every phone or computer signed in as <b>${esc(S.who.gmail)}</b> is signed out, including this one.`, 'Sign out everywhere')) signOut('global');
@@ -30,6 +31,63 @@ async function viewProfile() {
   $('#syncnow').onclick = async () => { const b = $('#syncnow'); b.disabled = true; b.textContent = 'Syncing…';
     try { await syncAndRefresh(); toast('Synced'); } catch (e) { toast(errText(e)); } viewProfile(); };
   if (me) loadLogins();
+  if (S.who.admin) pushBox();
+}
+
+/* ───────── Admin notifications (this phone only) ───────── */
+const PUSH_KINDS = [
+  ['visits', 'New visits'], ['requests', 'Requests'], ['verify', 'Verifications'],
+  ['signins', 'New sign-ins'], ['alerts', 'Wrong date-of-birth tries'], ['admin', 'Other admin changes']
+];
+const PUSH_DEFAULT = ['visits', 'requests', 'alerts'];
+const pushOK = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && !!DAURA_CONFIG.vapidPublicKey;
+const keyBytes = b64 => { const s = atob((b64 + '='.repeat((4 - b64.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); };
+
+async function pushBox() {
+  const el = $('#pushbox'); if (!el) return;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent), installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (!pushOK()) {
+    el.innerHTML = `<div class="card"><p class="muted" style="margin:0">${ios && !installed
+      ? 'On iPhone, notifications work only after you add TASC Connect to the Home Screen (Share → Add to Home Screen) and open it from there.'
+      : 'This browser can’t show notifications. Try Chrome on Android, or the installed app.'}</p></div>`;
+    return;
+  }
+  let sub = null, kinds = null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    sub = await reg.pushManager.getSubscription();
+    if (sub) kinds = await rpc('my_push_kinds', { p_endpoint: sub.endpoint });
+  } catch (e) { el.innerHTML = `<p class="hint">${/my_push_kinds/.test(String(e && e.message)) ? 'Run the version 16 database update first (SETUP.md).' : esc(errText(e))}</p>`; return; }
+  const on = !!(sub && kinds), blocked = Notification.permission === 'denied';
+  const pick = new Set(on ? kinds : PUSH_DEFAULT);
+  el.innerHTML = `<div class="card">
+      <div class="row"><div class="grow"><div class="t" style="font-weight:600">${on ? 'On for this phone' : 'Off on this phone'}</div>
+        <div class="s muted" style="font-size:13px">${blocked ? 'Notifications are blocked for this site. Allow them in the browser’s site settings, then come back.' : 'Activity from staff, as it happens. Your own actions don’t notify you.'}</div></div>
+        <button class="btn small ${on ? 'ghost' : ''}" id="pushtog" ${blocked ? 'disabled' : ''}>${on ? 'Turn off' : 'Turn on'}</button></div>
+      <div class="chips wrap" id="pushkinds">${PUSH_KINDS.map(([k, l]) => `<button class="chip ${pick.has(k) ? 'on' : ''}" data-k="${k}">${l}</button>`).join('')}</div>
+      <p class="hint" style="margin:0">Pick what to be told about. ${on ? 'Changes save straight away.' : 'Then tap Turn on.'}</p></div>`;
+  const chosen = () => $$('#pushkinds .chip.on').map(b => b.dataset.k);
+  const save = async (s) => rpc('save_push_subscription', { p_sub: s.toJSON(), p_kinds: chosen() });
+  $$('#pushkinds .chip').forEach(b => b.onclick = async () => {
+    b.classList.toggle('on');
+    if (on) { try { await save(sub); toast('Saved'); } catch (e) { b.classList.toggle('on'); toast(errText(e)); } }
+  });
+  $('#pushtog').onclick = async () => {
+    const t = $('#pushtog'); t.disabled = true;
+    try {
+      if (on) {
+        await rpc('remove_push_subscription', { p_endpoint: sub.endpoint }).catch(() => {});
+        await sub.unsubscribe(); toast('Notifications off');
+      } else {
+        if (!chosen().length) { toast('Pick at least one kind'); t.disabled = false; return; }
+        if (await Notification.requestPermission() !== 'granted') { toast('Notifications weren’t allowed'); return pushBox(); }
+        const reg = await navigator.serviceWorker.ready;
+        const s = sub || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(DAURA_CONFIG.vapidPublicKey) });
+        await save(s); toast('Notifications on');
+      }
+    } catch (e) { toast(/push_subscription|my_push_kinds/.test(String(e && e.message)) ? 'Run the version 16 database update first (SETUP.md)' : errText(e)); }
+    pushBox();
+  };
 }
 
 async function loadLogins() {
@@ -59,7 +117,7 @@ async function checkForUpdate() {
   try {
     const t = await (await fetch('version.js?t=' + Date.now(), { cache: 'no-store' })).text();
     const v = +(t.match(/APP_VERSION\s*=\s*(\d+)/) || [])[1];
-    if (v && v > APP_VERSION) { S.updateReady = v; if (S.tab === 'profile' && !$('#upd')) viewProfile(); else toast(`Daura ${v} is ready. Profile → Update now.`); }
+    if (v && v > APP_VERSION) { S.updateReady = v; if (S.tab === 'profile' && !$('#upd')) viewProfile(); else toast(`TASC Connect ${v} is ready. Profile → Update now.`); }
   } catch (e) { /* offline */ }
 }
 async function applyUpdate() {
