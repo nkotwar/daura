@@ -86,52 +86,12 @@ function openSheet(title, html, onClose) {
   const wrap = document.createElement('div');
   wrap.className = 'scrim';
   wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
-    <div class="grab" aria-hidden="true"><i></i></div>
     <div class="sheet-head"><h3>${esc(title)}</h3><button class="x" data-close aria-label="Close">${ICON.x}</button></div>
     <div class="sheet-body">${html}</div></div>`;
   wrap.addEventListener('click', e => { if (e.target === wrap || e.target.closest('[data-close]')) closeSheet(); });
   wrap._onClose = onClose;
   $('#layer').appendChild(wrap);
-  dragToClose(wrap);
   return $('.sheet-body', wrap);
-}
-
-/* Pull a panel down to close it: from the handle or header anytime, or from the content when it is scrolled to the top. */
-function dragToClose(wrap) {
-  const sheet = $('.sheet', wrap), body = $('.sheet-body', wrap);
-  let sy = 0, sx = 0, dy = 0, t0 = 0, on = false, lock = null;
-  wrap.addEventListener('touchstart', e => {
-    const t = e.target;
-    on = e.touches.length === 1 && !!t.closest('.sheet') && !t.closest('input, textarea, select, .chips, .tbl')
-      && (!!t.closest('.grab, .sheet-head') || body.scrollTop <= 0);
-    if (!on) return;
-    sy = e.touches[0].clientY; sx = e.touches[0].clientX; dy = 0; t0 = performance.now(); lock = null;
-  }, { passive: true });
-  wrap.addEventListener('touchmove', e => {
-    if (!on) return;
-    const y = e.touches[0].clientY - sy, x = e.touches[0].clientX - sx;
-    if (!lock && (Math.abs(y) > 6 || Math.abs(x) > 6)) lock = (y > 0 && Math.abs(y) > Math.abs(x)) ? 'down' : 'no';
-    if (lock !== 'down') return;
-    if (body.scrollTop > 0 && !e.target.closest('.grab, .sheet-head')) { on = false; return; }
-    dy = Math.max(0, y);
-    sheet.style.transition = 'none'; sheet.style.transform = `translateY(${dy}px)`;
-    wrap.style.background = `rgba(10,16,26,${0.45 * Math.max(0, 1 - dy / 500)})`;
-  }, { passive: true });
-  const end = () => {
-    if (!on) return; on = false;
-    if (lock !== 'down') return;
-    const v = dy / Math.max(1, performance.now() - t0);
-    if (dy > 110 || (dy > 30 && v > 0.5)) {
-      sheet.style.transition = 'transform .2s ease-in'; sheet.style.transform = 'translateY(100%)';
-      wrap.style.transition = 'background .2s'; wrap.style.background = 'rgba(10,16,26,0)';
-      setTimeout(() => { if (wrap.isConnected) closeSheet(); }, 190);
-    } else {
-      sheet.style.transition = 'transform .22s cubic-bezier(.2,.85,.25,1)'; sheet.style.transform = '';
-      wrap.style.background = '';
-    }
-  };
-  wrap.addEventListener('touchend', end, { passive: true });
-  wrap.addEventListener('touchcancel', end, { passive: true });
 }
 function closeSheet() {
   const w = $('#layer .scrim'); if (!w) return;

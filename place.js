@@ -95,7 +95,6 @@ async function openPlace(e, assignment) {
       ${e.lat != null ? `<a class="btn ghost grow" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}">${ICON.pin} Map</a>`
         : e.address ? `<a class="btn ghost grow" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.name + ', ' + e.address)}">${ICON.pin} Find on Maps</a>` : ''}
     </div>
-    <div id="pl-asg"></div>
     <div class="spacer"></div>${action}
     <h2>Visit history</h2>
     ${tl.length ? `<div class="list">${tl.map(v => `<button class="item" ${v.can_open ? `data-v="${v.id}"` : 'style="cursor:default"'}>
@@ -105,7 +104,6 @@ async function openPlace(e, assignment) {
       : '<p class="hint">Not visited yet.</p>'}
     ${myAsg ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}`;
 
-  loadAssignees($('#pl-asg', body), e.id);
   const go = (nextNo) => openVisitForm({ entity: e, assignment: myAsg ? assignment : null, nextNo });
   if ($('#pl-log', body)) $('#pl-log', body).onclick = () => go(1);
   if ($('#pl-fu', body)) $('#pl-fu', body).onclick = () => go(latest.visit_no + 1);
@@ -221,28 +219,3 @@ async function deleteVisitWithPhotos(id, photos) {
 }
 
 function refreshCurrent() { closeSheet(); S.cache.entities = null; if (VIEWS[S.tab]) VIEWS[S.tab](); }
-
-/* "Allotted to" on a place's page. Viewers and admin can tap a name to see that person's summary. */
-async function loadAssignees(el, entityId) {
-  if (!el) return;
-  let rows;
-  try { rows = await rpc('entity_assignees', { p_entity: entityId }); }
-  catch (e) {   // database not yet updated: viewers/admin can still read allotments directly
-    try {
-      const r = await q(sb.from('assignments').select('id, assignee, scheduled_on').eq('entity_id', entityId).eq('status', 'open'));
-      rows = r.map(a => ({ assignment_id: a.id, emp_id: a.assignee, name: personName(a.assignee), branch: (S.dir && S.dir.get(a.assignee) || {}).branch, scheduled_on: a.scheduled_on, visited: null }));
-    } catch (e2) { return; }
-  }
-  if (!rows.length) { el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>'; return; }
-  const today = todayISO(), canOpen = S.who.viewer;
-  el.innerHTML = `<h4 class="dh">Allotted to</h4><div class="list">${rows.map(r => {
-    const st = r.verified ? '<span class="badge ok">Verified</span>' : r.visited ? '<span class="badge acc">Visited</span>'
-      : r.scheduled_on && r.scheduled_on < today ? `<span class="badge bad">${daysBetween(r.scheduled_on, today)} d overdue</span>`
-      : r.scheduled_on === today ? '<span class="badge warn">Due today</span>' : `<span class="badge">Due ${r.scheduled_on ? fmtDate(r.scheduled_on) : '—'}</span>`;
-    const me = S.who.me && r.emp_id === S.who.me.emp_id;
-    return `<${canOpen ? `button class="item" data-st="${r.emp_id}"` : 'div class="item" style="cursor:default"'}>
-      <div class="avatar">${esc(initials(r.name))}</div>
-      <div class="grow"><div class="t">${esc(cleanName(r.name))}${me ? ' (you)' : ''}</div><div class="s">${esc(r.designation || '')}${r.branch ? ' · ' + esc(r.branch) : ''}</div></div>
-      ${st}${canOpen ? `<span class="chev">${ICON.chev}</span>` : ''}</${canOpen ? 'button' : 'div'}>`; }).join('')}</div>`;
-  $$('[data-st]', el).forEach(b => b.onclick = () => openStaff(+b.dataset.st));
-}
