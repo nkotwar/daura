@@ -234,12 +234,7 @@ async function loadAssignees(el, entityId) {
   if (!el) return;
   let rows;
   try { rows = await rpc('entity_assignees', { p_entity: entityId }); }
-  catch (e) {   // database not yet updated: viewers/admin can still read allotments directly
-    try {
-      const r = await q(sb.from('assignments').select('id, assignee, scheduled_on').eq('entity_id', entityId).eq('status', 'open'));
-      rows = r.map(a => ({ assignment_id: a.id, emp_id: a.assignee, name: personName(a.assignee), branch: (S.dir && S.dir.get(a.assignee) || {}).branch, scheduled_on: a.scheduled_on, visited: null }));
-    } catch (e2) { return; }
-  }
+  catch (e) { return; }   // database update not run yet: say nothing rather than something wrong
   if (!rows.length) { el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>'; return; }
   const today = todayISO(), canOpen = S.who.admin;
   el.innerHTML = `<h4 class="dh">Allotted to</h4><div class="list">${rows.map(r => {
@@ -250,7 +245,8 @@ async function loadAssignees(el, entityId) {
     const me = S.who.me && r.emp_id === S.who.me.emp_id;
     return `<${canOpen ? `button class="item" data-st="${r.emp_id}"` : 'div class="item" style="cursor:default"'}>
       <div class="avatar">${esc(initials(r.name))}</div>
-      <div class="grow"><div class="t">${esc(cleanName(r.name))}${me ? ' (you)' : ''}</div><div class="s">${esc(r.designation || '')}${r.branch ? ' · ' + esc(r.branch) : ''}</div></div>
+      <div class="grow"><div class="t">${esc(cleanName(r.name))}${me ? ' (you)' : ''}</div><div class="s">${esc(r.designation || '')}${r.branch ? ' · ' + esc(r.branch) : ''}${
+        r.visited_by_emp && r.visited_by_emp !== r.emp_id ? `<br><b>Visited by ${S.who.me && r.visited_by_emp === S.who.me.emp_id ? 'you' : esc(cleanName(r.visited_by))}</b> · ${fmtDate(r.visited_at)}` : ''}</div></div>
       ${st}${canOpen ? `<span class="chev">${ICON.chev}</span>` : ''}</${canOpen ? 'button' : 'div'}>`; }).join('')}</div>`;
   $$('[data-st]', el).forEach(b => b.onclick = () => openStaff(+b.dataset.st));
 }

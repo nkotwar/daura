@@ -43,21 +43,23 @@ async function loadMyWork() {
 }
 async function loadMyWorkNow() {
   const me = S.who.me;
-  const [asg, vis, req] = await Promise.all([
+  const [asg, vis, req, cover] = await Promise.all([
     q(sb.from('assignments').select('id, scheduled_on, status, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)')
       .eq('assignee', me.emp_id).eq('status', 'open').order('scheduled_on', { ascending: true })),
     q(sb.from('visits').select('id, assignment_id, entity_id, visit_no, status, visited_at, outcome, closure, followup_on, next_step, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)')
       .eq('visitor', me.emp_id).order('visited_at', { ascending: false }).limit(500)),
-    q(sb.from('requests').select('id, kind, reason, created_at, assignment_id, visit_id').eq('raised_by', me.emp_id).eq('status', 'pending'))
+    q(sb.from('requests').select('id, kind, reason, created_at, assignment_id, visit_id').eq('raised_by', me.emp_id).eq('status', 'pending')),
+    rpc('my_allotment_cover').catch(() => [])
   ]);
   const hold = new Map(req.filter(r => r.assignment_id).map(r => [r.assignment_id, r]));
-  S.cache.visits = { asg, vis, req, hold };
+  S.cache.visits = { asg, vis, req, hold, cover: new Map((cover || []).map(c => [c.assignment_id, c])) };
   return S.cache.visits;
 }
 
 function visitGroups() {
-  const { asg, vis, hold } = S.cache.visits;
+  const { asg, vis, hold, cover } = S.cache.visits;
   const done = new Set(vis.filter(v => v.assignment_id).map(v => v.assignment_id));
+  if (cover) cover.forEach((c, id) => done.add(id));   // visited by a colleague
   const today = todayISO();
   const g = { overdue: [], today: [], upcoming: [], done: [], hold: [] };
   for (const a of asg) {
@@ -98,8 +100,9 @@ async function drawTodo(el) {
       if (h) return `<button class="item locked" data-a="${a.id}"><div class="lock">${ICON.lock}</div><div class="grow"><div class="t">${esc(a.entity.name)}</div>
           <div class="s">Asked to ${h.kind === 'reassign' ? 'reassign' : 'remove'} · ${ago(h.created_at)} · waiting for admin</div></div>
         <span class="badge warn">Request pending</span></button>`;
+      const cv = f === 'done' && S.cache.visits.cover && S.cache.visits.cover.get(a.id);
       return `<button class="item" data-a="${a.id}"><div class="grow"><div class="t">${esc(a.entity.name)}</div>
-          <div class="s">${esc(a.entity.type)}${a.entity.area ? ' · ' + esc(a.entity.area) : ''}</div></div>
+          <div class="s">${cv ? `Visited by ${esc(cleanName(cv.visitor))} · ${fmtDate(cv.visited_at)}` : esc(a.entity.type) + (a.entity.area ? ' · ' + esc(a.entity.area) : '')}</div></div>
         <div style="text-align:right;flex:none"><div class="mono" style="font-size:13px">${fmtDate(a.scheduled_on)}</div>
           ${late ? `<span class="badge bad">${late} d late</span>` : ''}</div></button>`; }).join('')}</div>`
       : emptyState(f === 'overdue' ? ICON.shield : ICON.calendar, emptyMsg[0], emptyMsg[1])}

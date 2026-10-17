@@ -9,47 +9,56 @@ function mountPager(host, panes, activeId, onChange) {
   let i = Math.max(0, panes.findIndex(p => p.id === activeId));
   host.innerHTML = `<div class="seg seg-scroll pseg">${panes.map((p, k) => `<button data-pi="${k}" data-pid="${p.id}" class="${k === i ? 'on' : ''}">${p.label}<span class="segn" id="${p.badge || ''}"></span></button>`).join('')}</div>
     <div class="pager"><div class="track">${panes.map(p => `<section class="pane" data-pane="${p.id}"></section>`).join('')}</div></div>`;
-  const pager = $('.pager', host), track = $('.track', host), els = $$('.pane', host), btns = $$('.pseg button', host);
-  const loaded = new Set();
+  const pager = $('.pager', host), track = $('.track', host), els = $$('.pane', host), btns = $$('.pseg button', host), seg = $('.pseg', host);
+  const loaded = new Map();
   const load = k => {
-    if (k < 0 || k >= panes.length || loaded.has(k)) return;
-    loaded.add(k); els[k].innerHTML = '<div class="spin"></div>';
-    Promise.resolve().then(() => panes[k].draw(els[k])).catch(e => { els[k].innerHTML = `<div class="empty"><p>${esc(errText(e))}</p></div>`; loaded.delete(k); });
+    if (k < 0 || k >= panes.length) return Promise.resolve();
+    if (loaded.has(k)) return loaded.get(k);
+    els[k].innerHTML = '<div class="spin"></div>';
+    const p = Promise.resolve().then(() => panes[k].draw(els[k])).catch(e => { els[k].innerHTML = `<div class="empty"><p>${esc(errText(e))}</p></div>`; loaded.delete(k); });
+    loaded.set(k, p);
+    return p;
   };
+  // Every section is laid out all the time; the strip is clipped to the height of the one on show,
+  // so a swipe only moves things (no re-layout mid-gesture).
+  const padB = () => parseFloat(getComputedStyle(pager).paddingBottom) || 0;
+  const fit = () => { pager.style.height = (els[i].offsetHeight + padB()) + 'px'; };
+  if (window.ResizeObserver) { const ro = new ResizeObserver(() => fit()); els.forEach(el => ro.observe(el)); }
   const headH = () => ($('#top').getBoundingClientRect().height || 56) + 8;
-  // While moving, every pane is shown, and the others are shifted down so their tops line up with the visible area.
+  // If you have scrolled down, the neighbours are shifted down to line up with what is on screen.
   const prepare = () => {
-    const top = pager.getBoundingClientRect().top;               // where panes start, relative to the screen
-    const shift = Math.max(0, headH() - top);                    // how far the current pane has scrolled under the header
-    els.forEach((el, k) => { el.classList.remove('off'); el.style.transform = k === i ? '' : `translateY(${shift}px)`; });
+    const shift = Math.max(0, headH() - pager.getBoundingClientRect().top);
+    els.forEach((el, k) => { el.style.transform = k === i || !shift ? '' : `translate3d(0,${shift}px,0)`; });
     return shift;
   };
-  const settle = (k, shift) => {
-    // the new pane was shown shifted down; drop the shift and scroll by the same amount so nothing jumps
+  const settle = (shift) => {
     const top = pager.getBoundingClientRect().top;
-    els.forEach((el, n) => { el.style.transform = ''; el.classList.toggle('off', n !== k); });
+    els.forEach(el => { el.style.transform = ''; });
+    fit();
     if (shift) window.scrollTo({ top: window.scrollY + top - headH(), behavior: 'instant' });
   };
   const place = (px, anim) => {
-    track.style.transition = anim ? 'transform .32s cubic-bezier(.2,.85,.25,1)' : 'none';
+    track.style.transition = anim ? 'transform .3s cubic-bezier(.2,.85,.25,1)' : 'none';
     track.style.transform = `translate3d(calc(${-i * 100}% + ${px}px),0,0)`;
+  };
+  const centreTab = (k, smooth) => {   // scroll the section bar sideways only, never the page
+    const b = btns[k]; if (!seg || seg.scrollWidth <= seg.clientWidth) return;
+    seg.scrollTo({ left: b.offsetLeft - (seg.clientWidth - b.offsetWidth) / 2, behavior: smooth ? 'smooth' : 'auto' });
   };
   const goTo = (k, fromDrag) => {
     k = Math.max(0, Math.min(panes.length - 1, k));
     const shift = fromDrag != null ? fromDrag : prepare();
     const changed = k !== i; i = k;
     btns.forEach((b, n) => b.classList.toggle('on', n === k));
-    btns[k].scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
     load(k);
-    place(0, true);
+    requestAnimationFrame(() => place(0, true));
     clearTimeout(goTo._t);
-    goTo._t = setTimeout(() => { settle(k, changed ? shift : 0); load(k - 1); load(k + 1); }, 340);
+    goTo._t = setTimeout(() => { settle(changed ? shift : 0); centreTab(k, true); load(k - 1); load(k + 1); }, 320);
     if (changed) onChange(panes[k].id);
   };
-  // first show
-  els.forEach((el, n) => el.classList.toggle('off', n !== i));
-  place(0, false); load(i); onChange(panes[i].id);
-  setTimeout(() => { load(i - 1); load(i + 1); }, 600);
+  // first show: this section, then its neighbours straight after, so they are ready before you swipe
+  place(0, false); fit(); onChange(panes[i].id); centreTab(i, false);
+  load(i).then(() => { fit(); return Promise.all([load(i - 1), load(i + 1)]); });
   btns.forEach((b, k) => b.onclick = () => goTo(k));
 
   // finger tracking

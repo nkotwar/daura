@@ -12,15 +12,21 @@ async function loadStaffWork(el, emp) {
     ]);
   } catch (e) { el.innerHTML = `<p class="hint">${esc(errText(e))}</p>`; return; }
 
+  // visits to their allotted places by other people (admin can read every visit)
+  let others = [];
+  const ids = [...new Set(asg.map(a => a.entity.id))];
+  if (ids.length) { try { others = await q(sb.from('visits').select('id, entity_id, visitor, visit_no, status, visited_at').in('entity_id', ids).neq('visitor', emp).order('visit_no')); } catch (e) { /* show without */ } }
+  const otherFirst = new Map(); others.forEach(v => { if (!otherFirst.has(v.entity_id)) otherFirst.set(v.entity_id, v); });
   const today = todayISO();
   const byAsg = new Map(); vis.forEach(v => { if (v.assignment_id) { const c = byAsg.get(v.assignment_id); if (!c || v.visit_no < c.visit_no) byAsg.set(v.assignment_id, v); } });
   const latest = new Map(); vis.forEach(v => { const c = latest.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latest.set(v.entity_id, v); });
   const holdMap = new Map(req.filter(r => r.assignment_id).map(r => [r.assignment_id, r]));
   const rows = asg.map(a => {
-    const v = byAsg.get(a.id);
+    const own = byAsg.get(a.id), ov = !own && otherFirst.get(a.entity.id);
+    const v = own || ov;
     const h = holdMap.get(a.id);
     const st = v ? (v.status === 'verified' ? 'verified' : 'visited') : h ? 'hold' : !a.scheduled_on ? 'upcoming' : a.scheduled_on < today ? 'overdue' : a.scheduled_on === today ? 'today' : 'upcoming';
-    return { a, v, h, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, closure: (latest.get(a.entity.id) || {}).closure || a.entity.closure };
+    return { a, v, h, by: ov ? ov.visitor : null, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, closure: (latest.get(a.entity.id) || {}).closure || a.entity.closure };
   });
   const order = { overdue: 0, today: 1, hold: 2, upcoming: 3, visited: 4, verified: 5 };
   rows.sort((x, y) => order[x.st] - order[y.st] || (x.a.scheduled_on || '').localeCompare(y.a.scheduled_on || ''));
@@ -53,7 +59,7 @@ async function loadStaffWork(el, emp) {
       .filter(([k, , c]) => k === 'all' || c).map(([k, l, c]) => `<button class="chip ${filt === k ? 'on' : ''}" data-sf="${k}">${l}<b>${c}</b></button>`).join('')}</div>
     <div class="list">${shown.map(r => `<button class="item" data-ent="${r.a.entity.id}" data-asg="${r.a.id}">
         <div class="grow"><div class="t">${esc(r.a.entity.name)}</div>
-          <div class="s">${esc(r.a.entity.type)}${r.a.entity.area ? ' · ' + esc(r.a.entity.area) : ''}${r.v ? ` · visited ${fmtDate(r.v.visited_at)}` : ''}${r.h ? ` · "${esc(r.h.reason)}"` : ''}</div></div>
+          <div class="s">${esc(r.a.entity.type)}${r.a.entity.area ? ' · ' + esc(r.a.entity.area) : ''}${r.v ? ` · visited ${fmtDate(r.v.visited_at)}${r.by ? ' by ' + esc(personName(r.by)) : ''}` : ''}${r.h ? ` · "${esc(r.h.reason)}"` : ''}</div></div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none">${badge(r)}${r.closure ? `<span class="badge ${r.closure === 'account_opened' ? 'ok' : ''}">${closureLabel(r.closure)}</span>` : ''}</div></button>`).join('')}</div>`
       : '<p class="hint">No places allotted.</p>'}
     ${own.length ? `<h4 class="dh">Own visits</h4><div class="list">${own.map(v => `<button class="item" data-v="${v.id}"><div class="avatar mono" style="font-size:12px">V${v.visit_no}</div>

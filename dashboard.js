@@ -42,10 +42,14 @@ function dashModel(D, f) {
   const firstVisit = new Map();
   D.vis.forEach(v => { if (v.assignment_id) { const c = firstVisit.get(v.assignment_id); if (!c || v.visit_no < c.visit_no) firstVisit.set(v.assignment_id, v); } });
 
+  const entVisits = new Map();
+  D.vis.slice().sort((x, y) => x.visit_no - y.visit_no).forEach(v => { if (!entVisits.has(v.entity_id)) entVisits.set(v.entity_id, []); entVisits.get(v.entity_id).push(v); });
   const rows = D.asg.filter(okA).map(a => {
-    const v = firstVisit.get(a.id);
+    const own = firstVisit.get(a.id);
+    const ov = !own && (entVisits.get(a.entity.id) || []).find(x => x.visitor !== a.assignee);   // visited by a colleague
+    const v = own || ov;
     const st = v ? (v.status === 'verified' ? 'verified' : 'submitted') : D.hold && D.hold.has(a.id) ? 'hold' : (a.scheduled_on && a.scheduled_on < today ? 'overdue' : 'notdue');
-    return { a, v, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, delay: v && a.scheduled_on ? daysBetween(a.scheduled_on, localDay(v.visited_at)) : null };
+    return { a, v, by: ov ? ov.visitor : null, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, delay: v && a.scheduled_on ? daysBetween(a.scheduled_on, localDay(v.visited_at)) : null };
   });
   const vis = D.vis.filter(okV);
   const n = { total: rows.length, verified: 0, submitted: 0, overdue: 0, notdue: 0, hold: 0 };
@@ -248,7 +252,7 @@ function openOfficer(emp) {
     <div class="row">${o.overdue && waLink(o.phone, overdueMsg(o)) ? `<a class="btn soft grow" target="_blank" rel="noopener" href="${waLink(o.phone, overdueMsg(o))}">${ICON.wa} Nudge on WhatsApp</a>` : ''}
       ${telLink(o.phone) ? `<a class="btn ghost grow" href="${telLink(o.phone)}">${ICON.phone} Call</a>` : ''}</div>
     <h2>Allotted</h2><div class="list">${rows.map(r => `<button class="item" ${r.v ? `data-v="${r.v.id}"` : `data-e="${r.a.entity.id}"`}><div class="grow"><div class="t">${esc(r.a.entity.name)}</div>
-      <div class="s">Due ${fmtDate(r.a.scheduled_on)}${r.v ? ' · visited ' + fmtDate(r.v.visited_at) + (r.delay > 0 ? ` (${r.delay} d late)` : '') : r.late ? ` · ${r.late} d late` : ''}</div></div>
+      <div class="s">Due ${fmtDate(r.a.scheduled_on)}${r.v ? ' · visited ' + fmtDate(r.v.visited_at) + (r.by ? ' by ' + esc(personName(r.by)) : '') + (r.delay > 0 ? ` (${r.delay} d late)` : '') : r.late ? ` · ${r.late} d late` : ''}</div></div>
       <span class="badge ${lbl[r.st][1]}">${lbl[r.st][0]}</span></button>`).join('') || '<div class="empty">None.</div>'}</div>
     ${own.length ? `<h2>Own visits</h2><div class="list">${own.map(v => `<button class="item" data-v="${v.id}"><div class="grow"><div class="t">${esc(v.entity.name)} · V${v.visit_no}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '')}</div></div></button>`).join('')}</div>` : ''}`);
   $$('[data-v]', body).forEach(b => b.onclick = () => openVisit(b.dataset.v));
@@ -374,7 +378,7 @@ async function exportExcel(M, D) {
   const allot = M.rows.slice().sort((a, b) => (a.a.scheduled_on || '').localeCompare(b.a.scheduled_on || '')).map(r => ({
     'Place': r.a.entity.name, 'Type': r.a.entity.type, 'Area': r.a.entity.area || '', 'Officer': personName(r.a.assignee), 'Emp ID': r.a.assignee,
     'Officer branch': (S.dir.get(r.a.assignee) || {}).branch || '', 'Scheduled': d(r.a.scheduled_on), 'Status': st[r.st],
-    'Visited on': r.v ? d(r.v.visited_at) : null, 'Delay (days)': r.delay != null ? r.delay : (r.st === 'overdue' ? r.late : ''),
+    'Visited on': r.v ? d(r.v.visited_at) : null, 'Visited by': r.v ? personName(r.v.visitor) : '', 'Delay (days)': r.delay != null ? r.delay : (r.st === 'overdue' ? r.late : ''),
     'Outcome': r.v ? (r.v.outcome || '') : '', 'Closure': r.v ? closureLabel(r.v.closure) : ''
   }));
   const offs = M.byOff.map(o => ({ 'Officer': o.name, 'Emp ID': o.emp, 'Branch': o.branch, 'Allotted': o.total, 'Visited': o.visited, 'Overdue': o.overdue,
