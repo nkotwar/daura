@@ -167,6 +167,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 14 | Place page always shows who it is allotted to for admin (even before the database update), with a reminder if staff can't see it yet | Run `sql/05_update_v12.sql` if not done |
 | 15 | The phone keeps its own copy and syncs only what changed (on open, on return after 2+ min, on pull); your changes go straight into the copy. Hazri-style pull loader; About field guide | Run `sql/06_update_v15.sql` once (after 04 and 05) |
 | 16 | New name **TASC Connect** and logo (also on the summary image, Excel and photo stamps). Admin notifications of activity; new visits now show in Activity | Run `sql/07_update_v16.sql`, then section 8 if you want notifications |
+| 17 | Pull-down emblem spins without the extra ring; clearer message when a request reason is too short | None |
 
 ---
 

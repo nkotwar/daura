@@ -147,7 +147,7 @@ document.addEventListener('click', () => { if (!NAV.armed && S.who && $('#tabs')
     el.style.transform = `translateY(${shown}px) rotate(${spin}deg) scale(${armed ? 1.08 : 1})`;
     el.style.opacity = Math.min(1, shown / 40);
   };
-  const reset = () => { el.classList.remove('spin'); el.style.transition = 'transform .25s ease, opacity .25s ease'; place(0, 0); el.style.opacity = 0; setTimeout(() => { el.style.transition = ''; }, 260); };
+  const reset = () => { el.classList.remove('busy'); el.style.transition = 'transform .25s ease, opacity .25s ease'; place(0, 0); el.style.opacity = 0; setTimeout(() => { el.style.transition = ''; }, 260); };
   addEventListener('touchstart', e => {
     if (e.touches.length !== 1 || !can() || !e.target.closest('#main, #top')) { pulling = false; return; }
     const t = e.touches[0]; y0 = t.clientY; x0 = t.clientX; pulling = true; armed = false; d = 0;
@@ -166,7 +166,7 @@ document.addEventListener('click', () => { if (!NAV.armed && S.who && $('#tabs')
     if (!pulling) return; pulling = false;
     if (!armed) { reset(); return; }
     busy = true; armed = false;
-    el.style.transition = 'transform .2s ease'; place(ARM, 0); el.classList.add('spin');
+    el.style.transition = 'transform .2s ease'; place(ARM, 0); el.classList.add('busy');
     const t0 = Date.now();
     S.cache.people = null;
     let r = null;

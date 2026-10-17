@@ -260,7 +260,7 @@ html,body{overscroll-behavior-y:contain}
 /* Pull loader (v15), as in Hazri: the emblem drops from under the header and spins while syncing */
 #ptr{position:fixed;left:50%;margin-left:-20px;width:40px;height:40px;display:grid;place-items:center;z-index:15;opacity:0;pointer-events:none}
 #ptr img{width:32px;height:32px;filter:drop-shadow(0 1px 2px rgba(20,32,51,.25))}
-#ptr.spin img{animation:ptrspin .8s linear infinite}
+#ptr.busy img{animation:ptrspin .8s linear infinite}
 @keyframes ptrspin{to{transform:rotate(360deg)}}
 
 /* About (v15): a short field guide, same style as Hazri's */

@@ -123,7 +123,7 @@ function askRequest(kind, visitId, asgId, title, placeholder) {
     <p class="hint" id="rqe" style="color:var(--bad)"></p><button class="btn block" id="rqs">Send request</button>`);
   $('#rqs', body).onclick = async () => {
     const reason = $('#rq', body).value.trim();
-    if (reason.length < 5) { $('#rqe', body).textContent = 'Please write a short reason.'; return; }
+    if (reason.length < 5) { $('#rqe', body).textContent = 'That reason is too short. Add a few more words.'; return; }
     $('#rqs', body).disabled = true;
     try {
       const id = await rpc('raise_request', { p_kind: kind, p_visit: visitId, p_assignment: asgId, p_reason: reason });
