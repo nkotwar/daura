@@ -30,6 +30,7 @@ async function loadDashData(force = false) {
 /* Turn raw rows into everything the dashboard shows, for the chosen filters. */
 function dashModel(D, f) {
   const today = todayISO();
+  const tmr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString('en-CA'); })();
   const staff = e => S.dir.get(e) || {};
   const bname = new Map(D.branches.map(b => [b.code, b.name]));
   const ro = new Set(D.branches.filter(b => b.is_ro).map(b => b.code));
@@ -75,8 +76,10 @@ function dashModel(D, f) {
 
   // by branch (assignee's branch for allotments)
   const byBranch = new Map();
-  const bb = code => { if (!byBranch.has(code)) byBranch.set(code, { code, name: bname.get(code) || '—', total: 0, visited: 0, verified: 0, overdue: 0 }); return byBranch.get(code); };
-  rows.forEach(r => { const b = bb(staff(r.a.assignee).branch_code); b.total++; if (r.v) b.visited++; if (r.st === 'verified') b.verified++; if (r.st === 'overdue') b.overdue++; });
+  const bb = code => { if (!byBranch.has(code)) byBranch.set(code, { code, name: bname.get(code) || '—', total: 0, visited: 0, verified: 0, overdue: 0, tmr: 0 }); return byBranch.get(code); };
+  // every branch with staff appears, even with nothing allotted (unless one branch is filtered)
+  new Set([...S.dir.values()].map(p => p.branch_code)).forEach(code => { if (code != null && (!f.branch || code === f.branch)) bb(code); });
+  rows.forEach(r => { const b = bb(staff(r.a.assignee).branch_code); b.total++; if (r.v) b.visited++; if (r.st === 'verified') b.verified++; if (r.st === 'overdue') b.overdue++; if (!r.v && r.a.scheduled_on === tmr) b.tmr++; });
   // by officer
   const byOff = new Map();
   const oo = e => { if (!byOff.has(e)) byOff.set(e, { emp: e, name: cleanName(staff(e).name || 'Emp ' + e), branch: staff(e).branch || '', phone: staff(e).phone, total: 0, visited: 0, overdue: 0, own: 0, delaySum: 0, delayN: 0, pending: [] }); return byOff.get(e); };
@@ -93,8 +96,8 @@ function dashModel(D, f) {
     if (!verifiers.has(key)) verifiers.set(key, { key, name: bh ? cleanName(bh.name) : 'You (admin)', branch: bh ? bh.branch : 'Branch heads & RO staff', phone: bh ? bh.phone : null, n: 0, oldest: null });
     const x = verifiers.get(key); x.n++; if (!x.oldest || v.logged_at < x.oldest) x.oldest = v.logged_at;
   });
-  return { today, rows, vis, n, visited, ageing, delays, onTime, avgDelay, followDue, biz, outcomes, products, banking, otherBanks,
-    byBranch: [...byBranch.values()].sort((a, b) => b.overdue - a.overdue || b.total - a.total),
+  return { today, tmr, rows, vis, n, visited, ageing, delays, onTime, avgDelay, followDue, biz, outcomes, products, banking, otherBanks,
+    byBranch: [...byBranch.values()].sort((a, b) => b.overdue - a.overdue || b.tmr - a.tmr || b.total - a.total || a.name.localeCompare(b.name)),
     byOff: [...byOff.values()].sort((a, b) => b.overdue - a.overdue || a.name.localeCompare(b.name)),
     byType, verifiers: [...verifiers.values()].sort((a, b) => b.n - a.n), bname };
 }
@@ -161,8 +164,8 @@ async function viewDashboard(force = false) {
     </div>
 
     <div class="card"><h3>By branch</h3>
-      <div class="tbl"><table><thead><tr><th>Branch</th><th>Allotted</th><th>Visited</th><th>Overdue</th><th>Done</th></tr></thead><tbody>
-      ${M.byBranch.map(b => `<tr data-br="${b.code}"><td>${esc(b.name)}</td><td class="mono">${b.total}</td><td class="mono">${b.visited}</td><td class="mono ${b.overdue ? 'bad' : ''}">${b.overdue}</td><td>${minibar(pct(b.visited, b.total))}</td></tr>`).join('') || '<tr><td colspan="5" class="hint">No allotments.</td></tr>'}
+      <div class="tbl"><table><thead><tr><th>Branch</th><th>Allotted</th><th>Visited</th><th>Overdue</th><th>Due ${shortDay(M.tmr)}</th><th>Done</th></tr></thead><tbody>
+      ${M.byBranch.map(b => `<tr data-br="${b.code}"><td>${esc(b.name)}</td><td class="mono">${b.total}</td><td class="mono">${b.visited}</td><td class="mono ${b.overdue ? 'bad' : ''}">${b.overdue}</td><td class="mono">${b.tmr || '·'}</td><td>${minibar(pct(b.visited, b.total))}</td></tr>`).join('') || '<tr><td colspan="6" class="hint">No branches.</td></tr>'}
       </tbody></table></div>
       <p class="hint">Tap a branch to filter the whole dashboard to it.</p>
     </div>
@@ -207,6 +210,7 @@ async function viewDashboard(force = false) {
   loadGallery(f, M);
 }
 
+const shortDay = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 const tile = (v, l, cls = '') => `<div class="stat ${cls}"><b>${typeof v === 'number' ? v.toLocaleString('en-IN') : v}</b><span>${l}</span></div>`;
 const minibar = p => `<div class="mini" title="${p}% visited"><i style="width:${p}%"></i></div><span class="mono hint">${p}%</span>`;
 function stackBar(parts, total) {
@@ -269,13 +273,16 @@ async function loadGallery(f, M, limit = 12) {
   } catch (e) { el.innerHTML = `<div class="hint" style="grid-column:1/-1">${esc(errText(e))}</div>`; }
 }
 
-/* ───────── summary image (1080 × 1350, for WhatsApp) ───────── */
+/* ───────── summary image (1080 wide, as tall as needed: every branch, plus a totals row) ───────── */
 async function summaryImage(M, f, D) {
-  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const W = 1080, ROW = 46;
+  const br = M.byBranch;
+  const H = 640 + 70 + (br.length + 1) * ROW + 120;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d');
   try { await document.fonts.load('600 30px "IBM Plex Sans"'); await document.fonts.load('600 30px "IBM Plex Mono"'); } catch (e) { /* fallback fonts */ }
   const sans = (w, s) => `${w} ${s}px "IBM Plex Sans", system-ui, sans-serif`, mono = (w, s) => `${w} ${s}px "IBM Plex Mono", monospace`;
-  const P = { bg: '#F3F5F8', card: '#FFFFFF', ink: '#142033', muted: '#5B6B80', faint: '#8A97A8', line: '#DCE2EA', acc: '#146CC0', ok: '#12805C', bad: '#C2412D', warn: '#A86A0F', red: '#D20838' };
+  const P = { bg: '#F3F5F8', card: '#FFFFFF', ink: '#142033', muted: '#5B6B80', faint: '#8A97A8', line: '#DCE2EA', zebra: '#F7F9FB', acc: '#146CC0', ok: '#12805C', bad: '#C2412D', warn: '#A86A0F', red: '#D20838', mute: '#B7C2D0' };
   const txt = (t, X, Y, o = {}) => { x.font = o.f || sans(400, 26); x.fillStyle = o.c || P.ink; x.textAlign = o.a || 'left'; x.textBaseline = 'alphabetic'; x.fillText(t, X, Y); };
   const rr = (X, Y, w, h, r, fill) => { x.beginPath(); x.roundRect(X, Y, w, h, r); x.fillStyle = fill; x.fill(); };
   x.fillStyle = P.bg; x.fillRect(0, 0, W, H);
@@ -283,14 +290,14 @@ async function summaryImage(M, f, D) {
   const logo = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = 'icon-192.png'; });
   if (logo) x.drawImage(logo, 60, 50, 76, 76);
   txt('Daura · Visit report', 156, 92, { f: sans(700, 42) });
-  const scope = [f.camp && (D.camps.find(c => c.id === f.camp) || {}).name, f.type, f.branch && M.bname.get(f.branch)].filter(Boolean).join(' · ') || 'All visits';
+  const scope = [f.camp && (D.camps.find(cc => cc.id === f.camp) || {}).name, f.type, f.branch && M.bname.get(f.branch)].filter(Boolean).join(' · ') || 'All visits';
   txt(`Udaipur RO · ${scope}`, 156, 128, { f: sans(400, 26), c: P.muted });
-  x.fillStyle = P.red; x.fillRect(60, 156, W - 120, 4);
   txt(new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }), W - 60, 92, { f: sans(500, 24), c: P.muted, a: 'right' });
+  x.fillStyle = P.red; x.fillRect(60, 156, W - 120, 4);
   // tiles
-  const N = M.n;
-  const tiles = [[N.total, 'Allotted', P.ink], [M.visited + ` (${pct(M.visited, N.total)}%)`, 'Visited', P.ok], [N.overdue, 'Overdue', N.overdue ? P.bad : P.ink],
-    [N.verified, 'Verified', P.ink], [M.biz.opened, 'Accounts opened', P.ok], [inrShort(M.biz.mobilised), 'Mobilised', P.ok]];
+  const N = M.n, dueT = br.reduce((s, b) => s + b.tmr, 0);
+  const tiles = [[N.total, 'Allotted', P.ink], [`${M.visited} (${pct(M.visited, N.total)}%)`, 'Visited', P.ok], [N.overdue, 'Overdue', N.overdue ? P.bad : P.ink],
+    [dueT, `Due ${shortDay(M.tmr)}`, dueT ? P.warn : P.ink], [M.biz.opened, 'Accounts opened', P.ok], [inrShort(M.biz.mobilised), 'Mobilised', P.ok]];
   tiles.forEach(([v, l, col], i) => {
     const cx = 60 + (i % 3) * 330, cy = 190 + Math.floor(i / 3) * 150;
     rr(cx, cy, 310, 130, 18, P.card);
@@ -300,24 +307,35 @@ async function summaryImage(M, f, D) {
   // progress bar
   let y = 510; const bw = W - 120;
   rr(60, y, bw, 26, 13, P.line);
-  let bx = 60; [[N.verified, P.ok], [N.submitted, P.acc], [N.notdue, '#B7C2D0'], [N.overdue, P.bad]].forEach(([n, col]) => {
+  let bx = 60; [[N.verified, P.ok], [N.submitted, P.acc], [N.notdue, P.mute], [N.overdue, P.bad]].forEach(([n, col]) => {
     if (!n || !N.total) return; const w = n / N.total * bw; x.fillStyle = col; x.fillRect(bx, y, w, 26); bx += w; });
   y += 62;
-  [['Verified', N.verified, P.ok], ['Visited', N.submitted, P.acc], ['Not due', N.notdue, '#B7C2D0'], ['Overdue', N.overdue, P.bad]].forEach(([l, n, col], i) => {
-    const lx = 60 + i * 250; x.fillStyle = col; x.fillRect(lx, y - 18, 18, 18); txt(`${l} ${n}`, lx + 28, y, { f: sans(500, 24), c: P.ink }); });
-  // branch table
-  y += 50; txt('Branch', 60, y, { f: sans(700, 26) });
-  [['Allotted', 640], ['Visited', 800], ['Overdue', 1020]].forEach(([h, X]) => txt(h, X, y, { f: sans(700, 26), a: 'right' }));
-  y += 14; x.fillStyle = P.line; x.fillRect(60, y, W - 120, 2);
-  const br = M.byBranch.slice(0, 14);
+  [['Verified', N.verified, P.ok], ['Visited', N.submitted, P.acc], ['Not due', N.notdue, P.mute], ['Overdue', N.overdue, P.bad]].forEach(([l, n, col], i) => {
+    const lx = 60 + i * 250; x.fillStyle = col; x.fillRect(lx, y - 18, 18, 18); txt(`${l} ${n}`, lx + 28, y, { f: sans(500, 24) }); });
+  // branch table: every branch
+  const cols = [['Allotted', 580], ['Visited', 710], ['Overdue', 850], [`Due ${shortDay(M.tmr)}`, 1020]];
+  y = 640 + 40;
+  txt('Branch', 60, y, { f: sans(700, 24) });
+  cols.forEach(([h, X]) => txt(h, X, y, { f: sans(700, 24), a: 'right' }));
+  y += 16; x.fillStyle = P.ink; x.fillRect(60, y, W - 120, 2);
+  const cell = (b, Y, bold) => {
+    const w = bold ? 700 : 500, R = { a: 'right' };
+    txt(b.name.length > 28 ? b.name.slice(0, 27) + '…' : b.name, 72, Y, { f: sans(w, 25) });
+    txt(String(b.total), 580, Y, { ...R, f: mono(w, 25) });
+    txt(String(b.visited), 710, Y, { ...R, f: mono(w, 25), c: b.visited ? P.ok : P.faint });
+    txt(String(b.overdue), 850, Y, { ...R, f: mono(bold ? 700 : 600, 25), c: b.overdue ? P.bad : P.faint });
+    txt(b.tmr ? String(b.tmr) : '–', 1020, Y, { ...R, f: mono(w, 25), c: b.tmr ? P.warn : P.faint });
+  };
+  const rt = cell;
   br.forEach((b, i) => {
-    y += 44;
-    txt(b.name.length > 30 ? b.name.slice(0, 29) + '…' : b.name, 60, y, { f: sans(500, 26) });
-    txt(String(b.total), 640, y, { f: mono(500, 26), a: 'right' });
-    txt(String(b.visited), 800, y, { f: mono(500, 26), a: 'right', c: P.ok });
-    txt(String(b.overdue), 1020, y, { f: mono(600, 26), a: 'right', c: b.overdue ? P.bad : P.faint });
+    const top = y + i * ROW;
+    if (i % 2 === 0) { x.fillStyle = P.zebra; x.fillRect(60, top + 2, W - 120, ROW); }
+    rt(b, top + ROW - 14, false);
   });
-  if (M.byBranch.length > br.length) { y += 40; txt(`+ ${M.byBranch.length - br.length} more branches`, 60, y, { f: sans(400, 22), c: P.muted }); }
+  y += br.length * ROW;
+  x.fillStyle = P.ink; x.fillRect(60, y + 2, W - 120, 2);
+  const tot = br.reduce((t, b) => ({ name: 'Total', total: t.total + b.total, visited: t.visited + b.visited, overdue: t.overdue + b.overdue, tmr: t.tmr + b.tmr }), { total: 0, visited: 0, overdue: 0, tmr: 0 });
+  rt(tot, y + ROW - 10, true);
   // footer
   txt('Daura · Built by Nitin Kotwar (139535), via PDUDAIRO', W / 2, H - 44, { f: sans(500, 22), c: P.faint, a: 'center' });
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
@@ -360,14 +378,14 @@ async function exportExcel(M, D) {
   }));
   const offs = M.byOff.map(o => ({ 'Officer': o.name, 'Emp ID': o.emp, 'Branch': o.branch, 'Allotted': o.total, 'Visited': o.visited, 'Overdue': o.overdue,
     'Own visits': o.own, 'Avg delay (days)': o.delayN ? +(o.delaySum / o.delayN).toFixed(1) : '', 'Done %': pct(o.visited, o.total) }));
-  const brs = M.byBranch.map(b => ({ 'Branch': b.name, 'Allotted': b.total, 'Visited': b.visited, 'Verified': b.verified, 'Overdue': b.overdue, 'Done %': pct(b.visited, b.total) }));
+  const brs = M.byBranch.map(b => ({ 'Branch': b.name, 'Allotted': b.total, 'Visited': b.visited, 'Verified': b.verified, 'Overdue': b.overdue, [`Due ${shortDay(M.tmr)}`]: b.tmr, 'Done %': pct(b.visited, b.total) }));
   const wb = XLSX.utils.book_new();
   const add = (rows, name, widths) => { const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ '': 'No data' }], { cellDates: true, dateNF: 'dd-mmm-yyyy hh:mm' });
     ws['!cols'] = widths.map(w => ({ wch: w })); XLSX.utils.book_append_sheet(wb, ws, name); };
   add(allot, 'Allotments', [40, 20, 16, 26, 9, 18, 14, 20, 14, 11, 18, 14]);
   add(visits, 'Visits', [40, 20, 16, 8, 26, 9, 18, 18, 18, 9, 22, 18, 12, 14, 16, 10, 12, 13, 40, 18, 40, 30, 13, 15, 22, 14, 11, 18, 22]);
   add(offs, 'Officers', [28, 9, 20, 9, 9, 9, 10, 14, 8]);
-  add(brs, 'Branches', [26, 9, 9, 9, 9, 8]);
+  add(brs, 'Branches', [26, 9, 9, 9, 9, 11, 8]);
   XLSX.writeFile(wb, `Daura-${todayISO()}.xlsx`);
   toast('Excel downloaded');
 }

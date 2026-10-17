@@ -13,6 +13,7 @@ function startApp() {
   setTimeout(flushOutbox, 1500);
   if (!S.who.me && S.who.admin) S.tab = 'admin';
   header(); renderTabs(true); show(S.tab);
+  armBack();
 }
 
 function show(tab) {

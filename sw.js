@@ -2,7 +2,7 @@
    Data always comes live from the server. */
 importScripts('version.js');
 const CACHE = 'daura-v' + APP_VERSION;
-const SHELL = ['./', 'index.html', 'styles.css', 'config.js', 'version.js', 'core.js', 'auth.js', 'data.js', 'photos.js', 'form.js', 'place.js', 'visits.js', 'dashboard.js', 'profile.js', 'admin.js', 'main.js',
+const SHELL = ['./', 'index.html', 'styles.css', 'config.js', 'version.js', 'core.js', 'auth.js', 'data.js', 'photos.js', 'form.js', 'place.js', 'visits.js', 'dashboard.js', 'profile.js', 'admin.js', 'nav.js', 'main.js',
   'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'cbi-emblem.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
