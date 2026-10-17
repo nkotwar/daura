@@ -97,10 +97,14 @@ function drawStamp(x, w, h, s) {
 const fmtCoords = p => p && p.lat != null ? `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}${p.acc ? ' ±' + p.acc + ' m' : ''}` : '';
 
 /* Short-lived links to view private photos (10 minutes). */
+const URLS = new Map();   // path → { url, until }
 async function signedUrls(paths) {
-  if (!paths.length) return {};
-  const { data, error } = await sb.storage.from('photos').createSignedUrls(paths, 600);
-  if (error) throw error;
-  const m = {}; (data || []).forEach(d => { if (d.signedUrl) m[d.path] = d.signedUrl; });
+  const now = Date.now(), m = {}, need = [];
+  paths.forEach(p => { const c = URLS.get(p); if (c && c.until > now) m[p] = c.url; else need.push(p); });
+  if (need.length) {
+    const { data, error } = await sb.storage.from('photos').createSignedUrls(need, 600);
+    if (error) throw error;
+    (data || []).forEach(d => { if (d.signedUrl) { m[d.path] = d.signedUrl; URLS.set(d.path, { url: d.signedUrl, until: now + 540000 }); } });
+  }
   return m;
 }

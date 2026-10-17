@@ -15,11 +15,11 @@ async function viewVisits() {
   if (me.is_branch_head) panes.push({ id: 'verify', label: 'Verify', badge: 'vn-verify', draw: el => drawVerify(el) });
   const old = $('#v-host', main);
   if (old && old._pager && old._pager.ids === panes.map(p => p.id).join(',')) {   // already built: refresh quietly
-    S.cache.mw = null; await loadBasics().catch(() => {}); await old._pager.refresh(); countBadges(); return;
+    await old._pager.refresh(); countBadges(); return;
   }
   main.innerHTML = `${S.updateReady ? updateBar() : ''}<div id="v-host"></div>`;
   bindUpdate();
-  try { await loadBasics(); } catch (e) { /* each section shows its own error */ }
+  await loadBasics();
   mountPager($('#v-host', main), panes, S.cache.vseg || 'todo', id => { S.cache.vseg = id; remember(); });
   countBadges();
 }
@@ -30,35 +30,14 @@ async function countBadges() {
     const el = $('#vn-mine'); if (el) el.textContent = n ? ` · ${n}⏳` : '';
   } catch (e) { /* no IndexedDB */ }
   if (S.who.me && S.who.me.is_branch_head) {
-    try {
-      const { count } = await sb.from('visits').select('id', { count: 'exact', head: true })
-        .eq('visitor_branch', S.who.me.branch_code).eq('status', 'submitted').neq('visitor', S.who.me.emp_id);
-      const el = $('#vn-verify'); if (el) el.textContent = count ? ` · ${count}` : '';
-    } catch (e) { /* offline */ }
+    const count = qBranchVerify().length;
+    const el = $('#vn-verify'); if (el) el.textContent = count ? ` · ${count}` : '';
   }
 }
 
 /* ───────── To do ───────── */
-async function loadMyWork() {
-  if (S.cache.mw && Date.now() - S.cache.mw.at < 5000) return S.cache.mw.p;
-  const p = loadMyWorkNow(); S.cache.mw = { at: Date.now(), p };
-  p.catch(() => { S.cache.mw = null; });
-  return p;
-}
-async function loadMyWorkNow() {
-  const me = S.who.me;
-  const [asg, vis, req, cover] = await Promise.all([
-    q(sb.from('assignments').select('id, scheduled_on, status, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)')
-      .eq('assignee', me.emp_id).eq('status', 'open').order('scheduled_on', { ascending: true })),
-    q(sb.from('visits').select('id, assignment_id, entity_id, visit_no, status, visited_at, outcome, closure, followup_on, next_step, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)')
-      .eq('visitor', me.emp_id).order('visited_at', { ascending: false }).limit(500)),
-    q(sb.from('requests').select('id, kind, reason, created_at, assignment_id, visit_id').eq('raised_by', me.emp_id).eq('status', 'pending')),
-    rpc('my_allotment_cover').catch(() => [])
-  ]);
-  const hold = new Map(req.filter(r => r.assignment_id).map(r => [r.assignment_id, r]));
-  S.cache.visits = { asg, vis, req, hold, cover: new Map((cover || []).map(c => [c.assignment_id, c])) };
-  return S.cache.visits;
-}
+/* My work comes from the phone's copy: no database call. */
+async function loadMyWork() { S.cache.visits = qMyWork(); return S.cache.visits; }
 
 function visitGroups() {
   const { asg, vis, hold, cover } = S.cache.visits;
@@ -157,8 +136,7 @@ async function drawMine(el) {
 /* ───────── Verify (branch heads) ───────── */
 async function drawVerify(el) {
   const me = S.who.me;
-  const rows = await q(sb.from('visits').select('id, visit_no, visitor, visited_at, outcome, closure, entity:entities(name, type)')
-    .eq('visitor_branch', me.branch_code).eq('status', 'submitted').neq('visitor', me.emp_id).order('visited_at', { ascending: true }));
+  const rows = qBranchVerify();
   if (!rows.length) {
     el.innerHTML = emptyState(ICON.shield, 'All caught up', `When ${esc(me.branch)} staff log visits, they wait here for your check. Open one, look at the photos and details, then tap Verify.`);
     return;

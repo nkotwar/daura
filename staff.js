@@ -2,20 +2,12 @@
    and their own (self-initiated) visits. Used in Admin → People and Dashboard → Officers. */
 
 async function loadStaffWork(el, emp) {
-  el.innerHTML = '<div class="spin" style="margin:18px auto"></div>';
-  let asg, vis, req;
-  try {
-    [asg, vis, req] = await Promise.all([
-      q(sb.from('assignments').select('id, scheduled_on, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)').eq('assignee', emp).eq('status', 'open').order('scheduled_on')),
-      q(sb.from('visits').select('id, entity_id, assignment_id, visit_no, status, visited_at, outcome, closure, potential_rs, mobilised_rs, account_numbers, entity:entities(id, name, type, area, address, contact, closure, lat, lng, created_by)').eq('visitor', emp).order('visited_at', { ascending: false })),
-      q(sb.from('requests').select('assignment_id, kind, reason, created_at').eq('raised_by', emp).eq('status', 'pending'))
-    ]);
-  } catch (e) { el.innerHTML = `<p class="hint">${esc(errText(e))}</p>`; return; }
-
-  // visits to their allotted places by other people (admin can read every visit)
-  let others = [];
-  const ids = [...new Set(asg.map(a => a.entity.id))];
-  if (ids.length) { try { others = await q(sb.from('visits').select('id, entity_id, visitor, visit_no, status, visited_at').in('entity_id', ids).neq('visitor', emp).order('visit_no')); } catch (e) { /* show without */ } }
+  // all from the phone's copy: no database call
+  const asg = openAsg().filter(a => a.assignee === emp).map(withEntity).sort((a, b) => (a.scheduled_on || '').localeCompare(b.scheduled_on || ''));
+  const vis = all('visits').filter(v => v.visitor === emp).map(withEntity).sort((a, b) => (b.visited_at || '').localeCompare(a.visited_at || ''));
+  const req = all('requests').filter(r => r.raised_by === emp && r.status === 'pending');
+  const ids = new Set(asg.map(a => a.entity.id));
+  const others = all('visits').filter(v => ids.has(v.entity_id) && v.visitor !== emp).sort((a, b) => a.visit_no - b.visit_no);
   const otherFirst = new Map(); others.forEach(v => { if (!otherFirst.has(v.entity_id)) otherFirst.set(v.entity_id, v); });
   const today = todayISO();
   const byAsg = new Map(); vis.forEach(v => { if (v.assignment_id) { const c = byAsg.get(v.assignment_id); if (!c || v.visit_no < c.visit_no) byAsg.set(v.assignment_id, v); } });

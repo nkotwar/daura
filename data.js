@@ -1,12 +1,6 @@
-/* Daura · shared data (settings, staff names) and the "waiting to send" outbox.
+/* Daura · small shared helpers and the "waiting to send" outbox. Staff names and settings come from the phone's copy (store.js).
    A visit saved without signal stays on the phone (IndexedDB, photos included) and is sent when the network returns. */
 
-async function loadBasics(force = false) {
-  if (!force && S.settings && S.dir) return;
-  const [settings, dir] = await Promise.all([q(sb.from('settings').select('key, value')), rpc('staff_directory')]);
-  S.settings = Object.fromEntries(settings.map(r => [r.key, r.value]));
-  S.dir = new Map(dir.map(p => [p.emp_id, p]));
-}
 const personName = emp => { const p = S.dir && S.dir.get(emp); return p ? cleanName(p.name) : (emp ? 'Emp ' + emp : '—'); };
 const setting = (k, d = []) => (S.settings && S.settings[k]) || d;
 const closureLabel = k => ({ account_opened: 'Account opened', rejected: 'Rejected', not_feasible: 'Not feasible' }[k] || '');
@@ -41,14 +35,16 @@ const isNetErr = e => !navigator.onLine || /Failed to fetch|NetworkError|network
 async function pushVisit(item) {
   const v = item.visit;
   if (item.isNew && !item.inserted) {
-    const { error } = await sb.from('visits').insert({ id: item.id, ...v, visitor: v.visitor || (S.who.me && S.who.me.emp_id) });
+    const { data, error } = await sb.from('visits').insert({ id: item.id, ...v, visitor: v.visitor || (S.who.me && S.who.me.emp_id) }).select('*');
     if (error && error.code !== '23505') throw error;
+    if (data && data[0]) put('visits', { ...data[0], f: true });   // the saved row goes straight into the phone's copy
     item.inserted = true;
   } else if (!item.isNew && !item.updated) {
     const { entity_id, assignment_id, visitor, ...rest } = v;
-    const { data, error } = await sb.from('visits').update(rest).eq('id', item.id).select('id');
+    const { data, error } = await sb.from('visits').update(rest).eq('id', item.id).select('*');
     if (error) throw error;
     if (!data || !data.length) throw { message: 'LOCKED', hint: 'This visit can no longer be edited. It may have been verified.' };
+    put('visits', { ...data[0], f: true });
     item.updated = true;
   }
   if (!item.jointDone) {
@@ -56,12 +52,15 @@ async function pushVisit(item) {
     if (item.joint && item.joint.length) {
       r = await sb.from('visit_joint').insert(item.joint.map(e => ({ visit_id: item.id, emp_id: e }))); if (r.error) throw r.error;
     }
+    all('joint').filter(j => j.visit_id === item.id).forEach(j => DB.t.joint.delete(keyOf('joint', j)));
+    (item.joint || []).forEach(e => put('joint', { visit_id: item.id, emp_id: e }));
     item.jointDone = true;
   }
   for (const p of (item.removePhotos || [])) {
     if (p.done) continue;
     await sb.storage.from('photos').remove([p.path]);
     const r = await sb.from('visit_photos').delete().eq('id', p.id); if (r.error) throw r.error;
+    drop('photos', p.id);
     p.done = true;
   }
   for (const p of (item.addPhotos || [])) {
@@ -72,8 +71,11 @@ async function pushVisit(item) {
     const r = await sb.from('visit_photos').upsert({ id: p.id, visit_id: item.id, path, bytes: p.blob.size, source: p.source,
       taken_at: p.taken_at || null, lat: p.lat ?? null, lng: p.lng ?? null }, { onConflict: 'id', ignoreDuplicates: true });
     if (r.error) throw r.error;
+    put('photos', { id: p.id, visit_id: item.id, path, source: p.source, taken_at: p.taken_at || null, lat: p.lat ?? null, lng: p.lng ?? null, created_at: new Date().toISOString() });
+    if (p.source === 'capture' && p.lat != null) patch('entities', v.entity_id, { lat: p.lat, lng: p.lng });   // a live photo pins the place
     p.done = true;
   }
+  if (v.entity_id) recomputeClosure(v.entity_id);
 }
 
 /* Try now; without signal, keep it on the phone. Returns 'sent' or 'queued'. Other errors are thrown. */

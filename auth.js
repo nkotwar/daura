@@ -66,21 +66,39 @@ async function onGoogleCredential(resp) {
 }
 
 /* After sign-in: decide which screen to show. */
-async function route() {
+async function route(opts = {}) {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { screenSignIn(); return; }
-  let who;
-  try { who = await rpc('whoami'); }
+  const email = ((session.user && session.user.email) || '').toLowerCase();
+  if (DB.user !== email) await loadSnap(email);
+  // 1. This phone already has a copy: open straight away from it, then sync quietly.
+  if (!opts.fresh && DB.who && DB.who.state === 'linked') {
+    S.who = DB.who; startApp();
+    if (!opts.noSync) syncAndRefresh().catch(e => { if (isNetErr(e)) toast('Offline: showing what is saved on this phone'); });
+    return;
+  }
+  // 2. First time on this phone (or not yet linked): one call brings who you are and, once linked, everything.
+  let r;
+  try { r = await syncNow({ full: true }); }
   catch (e) {
     if (/JWT|token|session/i.test(e.message || '')) { await sb.auth.signOut({ scope: 'local' }); screenSignIn(); return; }
     screenOffline(e); return;
   }
-  S.who = who;
+  const who = r.who; S.who = who;
   if (who.state === 'not_google') { await signOut('local', true); screenSignIn({ kind: 'warn', html: 'Please sign in with a Google account.' }); return; }
   if (who.state === 'blocked') return screenStop('Access paused', 'The admin has paused access for this profile. Please contact the Regional Office.');
   if (who.state === 'inactive') return screenStop('Profile not active', 'Your name is not in the current staff list. If you have been posted to Udaipur RO, please ask the admin to update the staff list.');
   if (who.state === 'email_match') return screenEmailMatch(who);
   if (who.state === 'unlinked') return screenPickName(who);
+  startApp();
+}
+
+/* Just confirmed who you are: bring everything onto the phone once, then open the app. */
+async function enterApp(who) {
+  S.who = who;
+  $('#main').innerHTML = '<div class="spin"></div><p class="hint" style="text-align:center">Getting your visits ready…</p>';
+  try { await syncNow({ full: true }); S.who = DB.who || who; } catch (e) { /* opens with what there is; pull to retry */ }
+  toast('Welcome to Daura');
   startApp();
 }
 
@@ -122,7 +140,7 @@ function screenEmailMatch(who) {
     <p class="hint" style="text-align:center;margin-top:18px">Wrong details? You can still continue. Tell the Regional Office so the staff list gets corrected.</p>`;
   $('#yes').onclick = async () => {
     $('#yes').disabled = true;
-    try { S.who = await rpc('confirm_email_match'); toast('Welcome to Daura'); startApp(); }
+    try { await enterApp(await rpc('confirm_email_match')); }
     catch (e) { $('#yes').disabled = false; toast(errText(e)); }
   };
   $('#no').onclick = () => screenPickName(who);
@@ -199,7 +217,7 @@ function screenConfirmClaim(who, p, dob) {
     <button class="btn ghost block" id="back">Back</button>`;
   $('#ok').onclick = async () => {
     $('#ok').disabled = true;
-    try { S.who = await rpc('claim_by_dob', { p_emp: p.emp_id, p_dob: dob, p_confirm: true }); toast('Welcome to Daura'); startApp(); }
+    try { await enterApp(await rpc('claim_by_dob', { p_emp: p.emp_id, p_dob: dob, p_confirm: true })); }
     catch (e) { $('#ok').disabled = false; toast(errText(e)); }
   };
   $('#back').onclick = () => screenPickName(who);
@@ -211,5 +229,6 @@ async function signOut(scope = 'local', quiet = false) {
   try { localStorage.removeItem('daura-auth'); } catch (e) { /* storage may be blocked */ }
   try { google.accounts.id.disableAutoSelect(); } catch (e) { /* not loaded */ }
   S.who = null; S.cache = {}; S.tab = 'visits'; S.scrollAt = {}; $('#main').innerHTML = '';
+  await forgetSnap();   // signing out removes this person's copy from the phone
   if (!quiet) { screenSignIn(); toast(scope === 'global' ? 'Signed out on all devices' : 'Signed out'); }
 }

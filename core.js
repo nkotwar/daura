@@ -180,7 +180,7 @@ const roleLabel = r => ({ field: 'Field staff', viewer: 'Viewer', admin: 'Admin'
 
 function header() {
   const me = S.who && S.who.me;
-  $('#top').innerHTML = `<div class="brand"><img src="icon-192.png" alt=""><div><h1>Daura</h1>
+  $('#top').innerHTML = `<div class="brand"><button class="brand-btn" data-about aria-label="About Daura"><img src="icon-192.png" alt=""></button><div><h1>Daura</h1>
       <div class="sub">दौरा · Udaipur RO visits</div></div></div>
     ${me ? `<div class="who"><b>${esc(cleanName(me.name))}</b>${esc(me.branch || '')}</div>` : ''}`;
 }

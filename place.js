@@ -1,15 +1,7 @@
 /* Daura · places (search, add new), a place's page with its visit history, and a visit's full view. */
 
-async function loadEntities(force = false) {
-  if (!force && S.cache.entities) return S.cache.entities;
-  const rows = []; let from = 0;
-  while (true) {   // page through in 1000s
-    const page = await q(sb.from('entities').select('id, name, type, area, address, contact, closure, lat, lng, created_by').order('name').range(from, from + 999));
-    rows.push(...page); if (page.length < 1000) break; from += 1000;
-  }
-  S.cache.entities = rows;
-  return rows;
-}
+/* Places come from the phone's copy. */
+async function loadEntities() { return all('entities').sort((a, b) => a.name.localeCompare(b.name)); }
 
 /* ───────── Places tab segment ───────── */
 async function drawPlaces(el) {
@@ -61,7 +53,7 @@ async function openNewPlace(prefill = '') {
     try {
       const [e] = await q(sb.from('entities').insert({ name, type: $('#np-t', body).value, area: $('#np-a', body).value.trim() || null,
         address: $('#np-ad', body).value.trim() || null, contact: $('#np-c', body).value.trim() || null }).select('id, name, type, area, address, contact, closure, lat, lng, created_by'));
-      S.cache.entities = null;
+      put('entities', e);
       toast('Place added');
       openPlace(e);
     } catch (err) { $('#np-save', body).disabled = false; $('#np-err', body).textContent = errText(err); }
@@ -72,10 +64,9 @@ async function openNewPlace(prefill = '') {
 async function openPlace(e, assignment) {
   const me = S.who.me;
   if (!assignment && S.cache.visits) assignment = S.cache.visits.asg.find(a => a.entity.id === e.id);
-  const body = openSheet(e.name, '<div class="spin"></div>');
-  let tl;
-  try { tl = await rpc('entity_timeline', { p_entity: e.id }); }
-  catch (err) { body.innerHTML = `<div class="empty">${esc(errText(err))}</div>`; return; }
+  e = get('entities', e.id) || e;   // latest copy (closure, map pin)
+  const body = openSheet(e.name, '');
+  const tl = qTimeline(e.id);
   const latest = tl[tl.length - 1];
   const asgVisited = !!(assignment && me && tl.some(v => v.visitor_emp === me.emp_id));
   let action = '';
@@ -113,7 +104,12 @@ async function openPlace(e, assignment) {
   if ($('#pl-log', body)) $('#pl-log', body).onclick = () => go(1);
   if ($('#pl-fu', body)) $('#pl-fu', body).onclick = () => go(latest.visit_no + 1);
   if ($('#pl-reopen', body)) $('#pl-reopen', body).onclick = async () => {
-    try { await rpc('admin_reopen_place', { p_entity: e.id }); toast('Place reopened'); S.cache.entities = null; openPlace({ ...e, closure: null }, assignment); } catch (err) { toast(errText(err)); }
+    try {
+      await rpc('admin_reopen_place', { p_entity: e.id });
+      if (latest) patch('visits', latest.id, { closure: null, closure_note: null });
+      patch('entities', e.id, { closure: null });
+      toast('Place reopened'); openPlace(e, assignment);
+    } catch (err) { toast(errText(err)); }
   };
   $$('[data-v]', body).forEach(b => b.onclick = () => openVisit(b.dataset.v));
   if ($('#pl-reas', body)) $('#pl-reas', body).onclick = () => askRequest('reassign', null, assignment.id, `Reassign ${e.name}`, 'Why should someone else visit? e.g. not in my area, I am on leave');
@@ -130,9 +126,11 @@ function askRequest(kind, visitId, asgId, title, placeholder) {
     if (reason.length < 5) { $('#rqe', body).textContent = 'Please write a short reason.'; return; }
     $('#rqs', body).disabled = true;
     try {
-      await rpc('raise_request', { p_kind: kind, p_visit: visitId, p_assignment: asgId, p_reason: reason });
+      const id = await rpc('raise_request', { p_kind: kind, p_visit: visitId, p_assignment: asgId, p_reason: reason });
+      put('requests', { id, kind, visit_id: visitId, assignment_id: asgId, raised_by: S.who.me.emp_id, reason, status: 'pending', created_at: new Date().toISOString() });
+      if (asgId && (kind === 'reassign' || kind === 'delete_assignment')) DB.holds.add(asgId);
       closeSheet(); toast(asgId ? 'Request sent. This visit is locked until the admin decides.' : 'Request sent to the admin');
-      S.cache.mw = null; if (S.tab === 'visits') viewVisits();
+      if (S.tab === 'visits') viewVisits();
     }
     catch (e) { $('#rqs', body).disabled = false; $('#rqe', body).textContent = errText(e); }
   };
@@ -140,24 +138,17 @@ function askRequest(kind, visitId, asgId, title, placeholder) {
 
 /* ───────── A visit's full view ───────── */
 async function openVisit(id) {
-  const body = openSheet('Visit', '<div class="spin"></div>');
-  let v, photos, joint, ent;
-  try {
-    await loadBasics();
-    [[v], photos, joint] = await Promise.all([
-      q(sb.from('visits').select('*, entity:entities(id, name, type, area, address, contact, closure, lat, lng)').eq('id', id)),
-      q(sb.from('visit_photos').select('*').eq('visit_id', id).order('created_at')),
-      q(sb.from('visit_joint').select('emp_id').eq('visit_id', id))
-    ]);
-  } catch (e) { body.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
-  if (!v) { body.innerHTML = '<div class="empty">This visit is no longer available.</div>'; return; }
-  ent = v.entity;
+  const body = openSheet('Visit', '');
+  const got = qVisit(id);
+  if (!got) { body.innerHTML = emptyState(ICON.pin, 'Not available', 'This visit is no longer there. Pull down to refresh.'); return; }
+  if (!got.v.f) { body.innerHTML = emptyState(ICON.lock, 'Details not shared', 'Only the visitor, their branch head and the Regional Office see the full visit.'); return; }
+  const { v, photos, joint } = got, ent = v.entity;
   const me = S.who.me || {};
   const mine = v.visitor === me.emp_id, sub = v.status === 'submitted', adm = S.who.admin;
   const canVerify = sub && (adm || (me.is_branch_head && v.visitor_branch === me.branch_code && !mine));
   $('.sheet-head h3').textContent = `${ent.name} · Visit ${v.visit_no}`;
-  const urls = await signedUrls(photos.map(p => p.path)).catch(() => ({}));
-  const pending = await raisedFor(v.id);
+  const urls = photos.length ? await signedUrls(photos.map(p => p.path)).catch(() => ({})) : {};
+  const pr = qMyPendingFor(v.id), pending = pr ? ({ delete_visit: 'delete', unverify: 'unverify' }[pr.kind] || '') : '';
   const kv = (k, val) => val == null || val === '' || (Array.isArray(val) && !val.length) ? '' : `<dt>${k}</dt><dd>${val}</dd>`;
   body.innerHTML = `
     <div class="row wrap" style="margin-bottom:12px">
@@ -199,8 +190,12 @@ async function openVisit(id) {
   $('#v-acts', body).innerHTML = acts.join('');
 
   const on = (sel, fn) => { const b = $(sel, body); if (b) b.onclick = fn; };
-  on('#va-ver', async () => { try { await rpc('verify_visit', { p_visit: v.id }); toast('Verified'); closeSheet(); refreshCurrent(); } catch (e) { toast(errText(e)); } });
-  on('#va-unv', async () => { try { await rpc('unverify_visit', { p_visit: v.id }); toast('Unverified: the visitor can edit it again'); openVisit(v.id); } catch (e) { toast(errText(e)); } });
+  on('#va-ver', async () => {
+    try { await rpc('verify_visit', { p_visit: v.id }); patch('visits', v.id, { status: 'verified', verified_at: new Date().toISOString(), verified_by: me.emp_id || null }); toast('Verified'); refreshCurrent(); }
+    catch (e) { toast(errText(e)); } });
+  on('#va-unv', async () => {
+    try { await rpc('unverify_visit', { p_visit: v.id }); patch('visits', v.id, { status: 'submitted', verified_at: null, verified_by: null }); toast('Unverified: the visitor can edit it again'); openVisit(v.id); }
+    catch (e) { toast(errText(e)); } });
   on('#va-edit', () => openVisitForm({ entity: ent, visit: v, photos: photos.map(p => ({ id: p.id, path: p.path, url: urls[p.path], source: p.source })), joint: joint.map(j => j.emp_id) }));
   on('#va-del', async () => {
     if (!await confirmSheet('Delete this visit?', 'The visit and its photos are removed for good.', 'Delete', true)) return openVisit(v.id);
@@ -214,46 +209,19 @@ async function openVisit(id) {
   on('#va-runv', () => askRequest('unverify', v.id, null, 'Ask to unverify', 'What do you need to correct?'));
 }
 
-async function raisedFor(visitId) {
-  try {
-    const r = await q(sb.from('requests').select('kind').eq('visit_id', visitId).eq('status', 'pending').eq('raised_by', (S.who.me || {}).emp_id || 0).limit(1));
-    return r.length ? { delete_visit: 'delete', unverify: 'unverify' }[r[0].kind] || '' : '';
-  } catch (e) { return ''; }
-}
-
 async function deleteVisitWithPhotos(id, photos) {
   if (photos && photos.length) await sb.storage.from('photos').remove(photos.map(p => p.path));
   const gone = await q(sb.from('visits').delete().eq('id', id).select('id'));
   if (!gone.length) throw { message: 'NOT_ALLOWED', hint: 'This visit can no longer be deleted. It may have been verified.' };
+  dropVisit(id);
 }
 
-function refreshCurrent() { closeSheet(); S.cache.entities = null; if (VIEWS[S.tab]) VIEWS[S.tab](); }
+function refreshCurrent() { closeSheet(); if (VIEWS[S.tab]) VIEWS[S.tab](); }
 
 /* "Allotted to" on a place's page. Viewers and admin can tap a name to see that person's summary. */
 async function loadAssignees(el, entityId) {
   if (!el) return;
-  el.innerHTML = '<h4 class="dh">Allotted to</h4><p class="hint" style="margin:0">Checking…</p>';
-  let rows, dbNote = '';
-  try { rows = await rpc('entity_assignees', { p_entity: entityId }); }
-  catch (e) {
-    // The lookup needs the database update (sql/05_update_v12.sql). Until it is run, admin and viewers
-    // can still read allotments directly; field staff cannot, so they see nothing rather than something wrong.
-    if (!S.who.viewer) { el.innerHTML = ''; return; }
-    try {
-      const [asg, vis] = await Promise.all([
-        q(sb.from('assignments').select('id, assignee, scheduled_on').eq('entity_id', entityId).eq('status', 'open').order('scheduled_on')),
-        q(sb.from('visits').select('id, assignment_id, visitor, visit_no, status, visited_at').eq('entity_id', entityId).order('visit_no'))]);
-      await loadBasics();
-      rows = asg.map(a => {
-        const fv = vis.find(v => v.assignment_id === a.id) || vis.find(v => v.visitor !== a.assignee);
-        const p = S.dir.get(a.assignee) || {};
-        return { assignment_id: a.id, emp_id: a.assignee, name: p.name || 'Emp ' + a.assignee, designation: p.designation, branch: p.branch,
-          scheduled_on: a.scheduled_on, visited: !!fv, verified: !!fv && fv.status === 'verified', on_hold: false,
-          visited_by_emp: fv ? fv.visitor : null, visited_by: fv ? personName(fv.visitor) : null, visited_at: fv ? fv.visited_at : null };
-      });
-      if (S.who.admin) dbNote = '<p class="hint" style="color:var(--warn)">Staff can\'t see this yet: run <span class="mono">sql/05_update_v12.sql</span> in Supabase.</p>';
-    } catch (e2) { el.innerHTML = `<p class="hint">${esc(errText(e2))}</p>`; return; }
-  }
+  const rows = qAssignees(entityId), dbNote = '';
   if (!rows.length) { el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>' + dbNote; return; }
   const today = todayISO(), canOpen = S.who.admin;
   el.innerHTML = `<h4 class="dh">Allotted to</h4><div class="list">${rows.map(r => {

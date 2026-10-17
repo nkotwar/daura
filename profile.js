@@ -10,6 +10,12 @@ async function viewProfile() {
       : `<div class="card"><h3>Admin</h3><p class="muted">Signed in as ${esc(S.who.gmail)} without a staff profile.</p></div>`}
     ${me ? `<h2>Gmails that open your profile</h2><div id="logins"><div class="spin" style="margin:16px auto"></div></div>
     <p class="hint">If you see a Gmail here that isn't yours, remove it and tell the Regional Office.</p>` : ''}
+    <h2>Daura</h2>
+    <div class="list">
+      <button class="item" data-about><div class="grow"><div class="t">About Daura</div><div class="s">A short field guide</div></div><span class="chev">${ICON.chev}</span></button>
+      <div class="item" style="cursor:default"><div class="grow"><div class="t">Synced ${syncedAgo()}</div><div class="s">Pull down at the top of any tab to sync now</div></div>
+        <button class="btn small ghost" id="syncnow">Sync</button></div>
+    </div>
     <h2>Sign out</h2>
     <div class="stack">
       <button class="btn ghost block" id="so">${ICON.logout} Sign out on this phone</button>
@@ -21,6 +27,8 @@ async function viewProfile() {
     if (await confirmSheet('Sign out everywhere?', `Every phone or computer signed in as <b>${esc(S.who.gmail)}</b> is signed out, including this one.`, 'Sign out everywhere')) signOut('global');
   };
   bindUpdate();
+  $('#syncnow').onclick = async () => { const b = $('#syncnow'); b.disabled = true; b.textContent = 'Syncing…';
+    try { await syncAndRefresh(); toast('Synced'); } catch (e) { toast(errText(e)); } viewProfile(); };
   if (me) loadLogins();
 }
 

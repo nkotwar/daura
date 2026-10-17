@@ -14,19 +14,8 @@ const daoraLink = () => location.origin + location.pathname;
 const waLink = (phone, text) => { const p = String(phone || '').replace(/\D/g, '').slice(-10); return p.length === 10 ? `https://wa.me/91${p}?text=${encodeURIComponent(text)}` : null; };
 const telLink = phone => { const p = String(phone || '').replace(/\D/g, '').slice(-10); return p.length === 10 ? `tel:+91${p}` : null; };
 
-async function loadDashData(force = false) {
-  if (!force && S.cache.dash && Date.now() - S.cache.dash.at < 120000) return S.cache.dash;
-  await loadBasics();
-  const [asg, vis, branches, camps, req] = await Promise.all([
-    fetchAll(() => sb.from('assignments').select('id, assignee, scheduled_on, status, campaign_id, entity:entities(id, name, type, area)').eq('status', 'open').order('id')),
-    fetchAll(() => sb.from('visits').select('id, entity_id, assignment_id, visit_no, visitor, visitor_branch, visited_at, logged_at, status, outcome, closure, potential_rs, mobilised_rs, products, account_numbers, followup_on, banking_with, other_bank, person_name, person_designation, person_mobile, headcount, headcount_kind, next_step, remarks, verified_at, verified_by, entity:entities(id, name, type, area)').order('id')),
-    q(sb.from('branches').select('code, name, is_ro')),
-    q(sb.from('campaigns').select('id, name').order('id')),
-    q(sb.from('requests').select('assignment_id, kind').eq('status', 'pending').not('assignment_id', 'is', null))
-  ]);
-  S.cache.dash = { at: Date.now(), asg, vis, branches, camps, hold: new Set(req.filter(r => r.kind === 'reassign' || r.kind === 'delete_assignment').map(r => r.assignment_id)) };
-  return S.cache.dash;
-}
+/* Everything comes from the phone's copy: opening or filtering the dashboard makes no database call. */
+async function loadDashData() { await loadBasics(); S.cache.dash = qDash(); return S.cache.dash; }
 
 /* Turn raw rows into everything the dashboard shows, for the chosen filters. */
 function dashModel(D, f) {
@@ -129,7 +118,7 @@ async function viewDashboard(force = false) {
       ${sel('df-b', 'Branch', branchOpts.map(b => [b.code, b.name]), f.branch)}
       <button class="btn small ghost" id="df-r" title="Reload the latest data">↻</button>
     </div>
-    <div class="hint" style="margin:-4px 0 10px">Updated ${ago(new Date(D.at))}. Allotment figures follow the allotted officer's branch; business figures follow the visitor's branch.</div>
+    <div class="hint" style="margin:-4px 0 10px">Synced ${syncedAgo()}. Allotment figures follow the allotted officer's branch; business figures follow the visitor's branch.</div>
 
     <div class="stats s6">
       ${tile(N.total, 'Allotted')}
@@ -205,7 +194,7 @@ async function viewDashboard(force = false) {
   if ($('#df-c')) $('#df-c').onchange = e => setF('camp', +e.target.value || null);
   $('#df-t').onchange = e => setF('type', e.target.value);
   $('#df-b').onchange = e => setF('branch', +e.target.value || null);
-  $('#df-r').onclick = () => viewDashboard(true);
+  $('#df-r').onclick = async () => { $('#df-r').disabled = true; try { await syncAndRefresh(); } catch (e) { toast(errText(e)); } const b = $('#df-r'); if (b) b.disabled = false; };
   $$('[data-br]').forEach(r => r.onclick = () => { f.branch = +r.dataset.br; viewDashboard(); window.scrollTo(0, 0); });
   $$('[data-of]').forEach(b => b.onclick = () => { S.cache.offF = b.dataset.of; viewDashboard(); });
   $$('#offl [data-off]').forEach(b => b.onclick = () => (S.who.admin ? openStaff(+b.dataset.off) : openOfficer(+b.dataset.off)));
@@ -265,7 +254,7 @@ async function loadGallery(f, M, limit = 12) {
   try {
     const ids = new Set(M.vis.map(v => v.id));
     const filtered = f.camp || f.type || f.branch;
-    let rows = await q(sb.from('visit_photos').select('id, path, visit_id, source, created_at').order('created_at', { ascending: false }).limit(filtered ? 300 : limit + 1));
+    let rows = all('photos').sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     if (filtered) rows = rows.filter(p => ids.has(p.visit_id));
     const more = rows.length > limit; rows = rows.slice(0, limit);
     if (!rows.length) { el.innerHTML = '<div class="hint" style="grid-column:1/-1">No photos yet.</div>'; return; }

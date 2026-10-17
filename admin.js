@@ -7,14 +7,14 @@ async function viewAdmin() {
   if (!S.who.admin) { TV().innerHTML = '<div class="empty">Admins only.</div>'; return; }
   await loadBasics();
   const panes = [
-    { id: 'people', label: 'People', badge: 'an-people', draw: () => admPeople() },
+    { id: 'people', label: 'People', badge: 'an-people', draw: () => admPeople(false) },
     { id: 'verify', label: 'Verify', badge: 'an-verify', draw: () => admVerify() },
     { id: 'requests', label: 'Requests', badge: 'an-requests', draw: () => admRequests() },
     { id: 'staff', label: 'Staff list', badge: 'an-staff', draw: () => admStaff() },
     { id: 'activity', label: 'Activity', badge: 'an-activity', draw: () => admActivity() }
   ];
   const old = $('#adm-host', TV());
-  if (old && old._pager) { S.cache.people = null; S.cache.avRows = null; await loadBasics().catch(() => {}); await old._pager.refresh(); adminBadges(); return; }
+  if (old && old._pager) { await old._pager.refresh(); adminBadges(); return; }
   TV().innerHTML = `${S.updateReady ? updateBar() : ''}<div id="adm-host"></div>`;
   bindUpdate();
   mountPager($('#adm-host', TV()), panes, S.cache.adminSeg || 'people', id => { S.cache.adminSeg = id; remember(); });
@@ -22,22 +22,16 @@ async function viewAdmin() {
 }
 
 async function adminBadges() {
-  try {
-    const [{ count: rq }, { count: vf }] = await Promise.all([
-      sb.from('requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      sb.from('visits').select('id', { count: 'exact', head: true }).eq('status', 'submitted')]);
-    const a = $('#an-requests'); if (a) a.textContent = rq ? ` · ${rq}` : '';
-    const b = $('#an-verify'); if (b) b.textContent = vf ? ` · ${vf}` : '';
-  } catch (e) { /* offline */ }
+  const rq = all('requests').filter(r => r.status === 'pending').length, vf = all('visits').filter(v => v.status === 'submitted').length;
+  const a = $('#an-requests'); if (a) a.textContent = rq ? ` · ${rq}` : '';
+  const b = $('#an-verify'); if (b) b.textContent = vf ? ` · ${vf}` : '';
 }
 
 /* ───────── Verify (admin) ─────────
    "Needs you": visits by branch heads and RO staff (no branch head above them). "All": every unverified visit. */
 async function admVerify(noFetch) {
-  if (!noFetch || !S.cache.avRows) S.cache.avRows = await Promise.all([
-    q(sb.from('visits').select('id, visit_no, visitor, visitor_branch, visited_at, outcome, closure, entity:entities(name, type)').eq('status', 'submitted').order('visited_at', { ascending: true }).limit(1000)),
-    q(sb.from('branches').select('code, name, is_ro'))]);
-  const [rows, branches] = S.cache.avRows;
+  const rows = all('visits').filter(v => v.status === 'submitted').map(withEntity).sort((a, b) => (a.visited_at || '').localeCompare(b.visited_at || ''));
+  const branches = all('branches');
   const ro = new Set(branches.filter(b => b.is_ro).map(b => b.code));
   const bname = new Map(branches.map(b => [b.code, b.name]));
   const needs = v => ro.has(v.visitor_branch) || (S.dir.get(v.visitor) || {}).is_branch_head;
@@ -59,11 +53,7 @@ async function admVerify(noFetch) {
 /* ───────── Requests (admin) ───────── */
 const RQ_LABEL = { delete_visit: 'Delete a visit', delete_assignment: 'Remove an allotment', reassign: 'Reassign an allotment', unverify: 'Unverify a visit (to edit)' };
 async function admRequests() {
-  const sel = 'id, kind, reason, status, created_at, decided_at, decision_note, raised_by, visit_id, assignment_id, ' +
-    'visit:visits(id, visit_no, visitor, entity:entities(name)), assignment:assignments(id, assignee, scheduled_on, entity:entities(name))';
-  const [pending, done] = await Promise.all([
-    q(sb.from('requests').select(sel).eq('status', 'pending').order('created_at')),
-    q(sb.from('requests').select(sel).neq('status', 'pending').order('decided_at', { ascending: false }).limit(20))]);
+  const { pending, done } = qRequests();
   const target = r => r.visit ? `${esc(r.visit.entity.name)} · Visit ${r.visit.visit_no}` : r.assignment ? `${esc(r.assignment.entity.name)} · scheduled ${fmtDate(r.assignment.scheduled_on)}` : '<i>no longer exists</i>';
   admPane('requests').innerHTML = `
     ${pending.length ? pending.map(r => `<div class="card">
@@ -91,10 +81,19 @@ async function admRequests() {
     if (approve && r.kind === 'reassign') { to = +($('#to-' + id).value || 0); if (!to) { toast('Choose who to reassign to'); return; } }
     try {
       if (approve && r.kind === 'delete_visit' && r.visit_id) {
-        const ph = await q(sb.from('visit_photos').select('path').eq('visit_id', r.visit_id));
+        const ph = all('photos').filter(p => p.visit_id === r.visit_id);
         if (ph.length) await sb.storage.from('photos').remove(ph.map(p => p.path));
       }
       await rpc('decide_request', { p_request: id, p_approve: approve, p_note: note, p_to: to });
+      // apply the decision to the phone's copy
+      patch('requests', id, { status: approve ? 'approved' : 'declined', decision_note: note, decided_at: new Date().toISOString(), decided_by: S.who.gmail });
+      if (r.assignment_id) DB.holds.delete(r.assignment_id);
+      if (approve) {
+        if (r.kind === 'delete_visit' && r.visit_id) dropVisit(r.visit_id);
+        if (r.kind === 'delete_assignment' && r.assignment_id) patch('assignments', r.assignment_id, { status: 'cancelled' });
+        if (r.kind === 'reassign' && r.assignment_id) patch('assignments', r.assignment_id, { assignee: to });
+        if (r.kind === 'unverify' && r.visit_id) patch('visits', r.visit_id, { status: 'submitted', verified_at: null, verified_by: null });
+      }
       toast(approve ? 'Approved' : 'Declined'); admRequests(); adminBadges();
     } catch (e) { toast(errText(e)); }
   };
@@ -213,7 +212,9 @@ function openPerson(emp) {
 /* ───────── Staff list (udairo.js) + storage ───────── */
 async function admStaff() {
   let bytes = null;
-  try { bytes = await rpc('admin_storage_bytes'); } catch (e) { /* shown as unknown */ }
+  // storage use changes slowly: ask at most once a day
+  try { const c = JSON.parse(localStorage.getItem('daura-storage') || 'null'); if (c && Date.now() - c.at < 864e5) bytes = c.bytes; } catch (e) { /* storage blocked */ }
+  if (bytes == null) { try { bytes = await rpc('admin_storage_bytes'); localStorage.setItem('daura-storage', JSON.stringify({ at: Date.now(), bytes })); } catch (e) { /* shown as unknown */ } }
   const mb = bytes == null ? null : bytes / 1048576;
   const pct = mb == null ? 0 : Math.min(100, mb / 1024 * 100);
   const cls = mb >= 800 ? 'bad' : mb >= 600 ? 'warn' : '';
@@ -264,6 +265,7 @@ async function admStaff() {
         const r = await rpc('admin_import_directory', { d: slim });
         S.cache.people = null;
         toast(`Updated: ${r.staff} staff, ${r.new} new, ${r.inactivated} marked inactive`, 4000);
+        syncNow().catch(() => {});   // bring the new staff list into the phone's copy
         admStaff();
       } catch (err) { $('#uok').disabled = false; toast(errText(err)); }
     };

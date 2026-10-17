@@ -148,6 +148,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 12 | Smoother section swipes; a place allotted to one person but visited by another shows "Visited by …" and counts as visited | Run `sql/05_update_v12.sql` once |
 | 13 | Faster, smoother: tabs stay built and refresh quietly, filters don't reload, panels swap content in place | None |
 | 14 | Place page always shows who it is allotted to for admin (even before the database update), with a reminder if staff can't see it yet | Run `sql/05_update_v12.sql` if not done |
+| 15 | The phone keeps its own copy and syncs only what changed (on open, on return after 2+ min, on pull); your changes go straight into the copy. Hazri-style pull loader; About field guide | Run `sql/06_update_v15.sql` once (after 04 and 05) |
 
 ---
 

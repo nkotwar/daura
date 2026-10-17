@@ -251,8 +251,7 @@ async function saveForm(body, F) {
     F.photos.forEach(p => p.preview && URL.revokeObjectURL(p.preview));
     closeSheet();
     toast(r === 'queued' ? 'No signal. Saved on this phone; it will send by itself.' : (F.isNew ? 'Visit submitted' : 'Changes saved'), 3500);
-    S.cache.place = null;
-    if (S.tab === 'visits') viewVisits();
+    if (VIEWS[S.tab]) VIEWS[S.tab]();   // redraw from the phone's copy (the saved visit is already in it)
   } catch (e) {
     btn.disabled = false; btn.textContent = F.isNew ? 'Submit visit' : 'Save changes';
     err(errText(e));

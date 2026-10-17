@@ -133,31 +133,46 @@ window.addEventListener('popstate', async () => {
 // Using the app again after cancelling the exit puts the back-button handling back in place.
 document.addEventListener('click', () => { if (!NAV.armed && S.who && $('#tabs') && !$('#tabs').hidden) armBack(); }, true);
 
-/* ───────── pull down at the top to refresh the current tab (keeps you where you are) ───────── */
+/* ───────── pull down at the top to sync (as in Hazri): the CBI emblem drops from the header,
+   arms with a small buzz, spins while one quiet sync runs, then the screen updates in place. ───────── */
 (function pull() {
-  let sy = 0, dy = 0, on = false, busy = false;
-  const ptr = () => $('#ptr');
-  document.addEventListener('touchstart', e => {
-    on = !busy && e.touches.length === 1 && window.scrollY <= 0 && !$('#layer .scrim') && !!S.who && !$('#tabs').hidden && !!e.target.closest('#main, #top');
-    sy = e.touches[0].clientY; dy = 0; S.ptrX = e.touches[0].clientX;
+  const el = $('#ptr');
+  const MAX = 110, ARM = 64;
+  let y0 = 0, x0 = 0, pulling = false, armed = false, busy = false, d = 0;
+  const can = () => !busy && !!S.who && S.who.state === 'linked' && !$('#tabs').hidden && !$('#layer .scrim') && (window.scrollY || document.documentElement.scrollTop) <= 0;
+  const place = (shown, spin) => {
+    const top = $('#top').getBoundingClientRect().bottom;
+    el.style.top = (top - 44) + 'px';
+    el.style.transform = `translateY(${shown}px) rotate(${spin}deg) scale(${armed ? 1.08 : 1})`;
+    el.style.opacity = Math.min(1, shown / 40);
+  };
+  const reset = () => { el.classList.remove('spin'); el.style.transition = 'transform .25s ease, opacity .25s ease'; place(0, 0); el.style.opacity = 0; setTimeout(() => { el.style.transition = ''; }, 260); };
+  addEventListener('touchstart', e => {
+    if (e.touches.length !== 1 || !can() || !e.target.closest('#main, #top')) { pulling = false; return; }
+    const t = e.touches[0]; y0 = t.clientY; x0 = t.clientX; pulling = true; armed = false; d = 0;
   }, { passive: true });
-  document.addEventListener('touchmove', e => {
-    if (!on) return;
-    dy = e.touches[0].clientY - sy;
-    if (Math.abs(e.touches[0].clientX - S.ptrX) > Math.abs(dy)) { on = false; ptr().style.opacity = 0; return; }   // sideways: that's a swipe, not a pull
-    if (dy <= 0 || window.scrollY > 0) { ptr().style.opacity = 0; return; }
-    const d = Math.min(90, dy * 0.5);
-    ptr().style.transition = 'none';
-    ptr().style.opacity = Math.min(1, d / 50);
-    ptr().style.transform = `translateY(${d - 30}px) rotate(${d * 4}deg)`;
+  addEventListener('touchmove', e => {
+    if (!pulling) return;
+    const t = e.touches[0], dy = t.clientY - y0, dx = t.clientX - x0;
+    if (d === 0 && (dy <= 0 || Math.abs(dx) > dy)) { pulling = false; return; }   // not a downward pull (a swipe, or a scroll)
+    d = Math.max(0, dy);
+    const shown = Math.min(MAX, d * .5);
+    const was = armed; armed = shown >= ARM;
+    if (armed && !was) { try { navigator.vibrate && navigator.vibrate(10); } catch (err) { /* no vibration */ } }
+    place(shown, shown * 3);
   }, { passive: true });
-  document.addEventListener('touchend', async () => {
-    if (!on) return; on = false;
-    const p = ptr();
-    if (dy * 0.5 < 60) { p.style.transition = 'all .2s'; p.style.opacity = 0; p.style.transform = 'translateY(-30px)'; return; }
-    busy = true; p.classList.add('spin'); p.style.transition = 'all .2s'; p.style.transform = 'translateY(30px)';
-    S.cache.dash = null; S.cache.entities = null; S.cache.people = null; S.settings = null; S.dir = null;
-    try { await Promise.all([VIEWS[S.tab](), checkForUpdate(), flushOutbox()]); } catch (e) { /* the view shows its own error */ }
-    p.classList.remove('spin'); p.style.opacity = 0; p.style.transform = 'translateY(-30px)'; busy = false;
+  addEventListener('touchend', async () => {
+    if (!pulling) return; pulling = false;
+    if (!armed) { reset(); return; }
+    busy = true; armed = false;
+    el.style.transition = 'transform .2s ease'; place(ARM, 0); el.classList.add('spin');
+    const t0 = Date.now();
+    S.cache.people = null;
+    let r = null;
+    try { [r] = await Promise.all([syncAndRefresh(), flushOutbox(), checkForUpdate()]); }
+    catch (err) { toast(isNetErr(err) ? 'No internet. Showing what is saved on this phone.' : errText(err)); }
+    if (!r || !r.changed) { if (VIEWS[S.tab]) VIEWS[S.tab](); }   // nothing new: still redraw (e.g. due dates roll over)
+    await new Promise(r => setTimeout(r, Math.max(0, 650 - (Date.now() - t0))));
+    busy = false; reset();
   }, { passive: true });
 })();
