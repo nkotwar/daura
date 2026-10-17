@@ -4,6 +4,7 @@
 async function viewAdmin() {
   if (!S.who.admin) { $('#main').innerHTML = '<div class="empty">Admins only.</div>'; return; }
   const seg = S.cache.adminSeg || 'people';
+  S.cache.adminSeg = seg; remember();
   const segs = [['people', 'People'], ['verify', 'Verify'], ['requests', 'Requests'], ['staff', 'Staff list'], ['activity', 'Activity']];
   $('#main').innerHTML = `${S.updateReady ? updateBar() : ''}<div class="seg seg-scroll">${segs.map(([k, l]) =>
       `<button data-seg="${k}" class="${seg === k ? 'on' : ''}">${l}<span class="segn" id="an-${k}"></span></button>`).join('')}</div>

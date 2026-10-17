@@ -10,7 +10,7 @@ async function viewVisits() {
   const segs = [['todo', 'To do'], ['mine', 'My visits'], ['places', 'Places']];
   if (me.is_branch_head) segs.push(['verify', 'Verify']);
   const seg = segs.some(s => s[0] === S.cache.vseg) ? S.cache.vseg : 'todo';
-  S.cache.vseg = seg;
+  S.cache.vseg = seg; remember();
   main.innerHTML = `${S.updateReady ? updateBar() : ''}<div class="seg" id="vseg">${segs.map(([k, l]) => `<button data-vs="${k}" class="${seg === k ? 'on' : ''}">${l}<span class="segn" id="vn-${k}"></span></button>`).join('')}</div><div id="vbody"><div class="spin"></div></div>`;
   bindUpdate();
   $$('[data-vs]').forEach(b => b.onclick = () => { S.cache.vseg = b.dataset.vs; viewVisits(); });

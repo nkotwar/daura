@@ -5,6 +5,8 @@ const VIEWS = { visits: () => viewVisits(), dashboard: () => viewDashboard(), ad
 function startApp() {
   if (!S.who) return route();
   try {
+    const w = JSON.parse(sessionStorage.getItem('daura-where') || 'null');
+    if (w) { if (w.tab) S.tab = w.tab; if (w.vseg) S.cache.vseg = w.vseg; if (w.adminSeg) S.cache.adminSeg = w.adminSeg; }
     const t = sessionStorage.getItem('daura-tab'); const want = +sessionStorage.getItem('daura-updated');
     sessionStorage.removeItem('daura-tab'); sessionStorage.removeItem('daura-updated');
     if (t) S.tab = t;
@@ -16,9 +18,13 @@ function startApp() {
   armBack();
 }
 
+function remember() {
+  try { sessionStorage.setItem('daura-where', JSON.stringify({ tab: S.tab, vseg: S.cache.vseg, adminSeg: S.cache.adminSeg })); } catch (e) { /* storage blocked */ }
+}
+
 function show(tab) {
   if (!VIEWS[tab] || (tab === 'admin' && !S.who.admin) || (tab === 'dashboard' && !S.who.viewer)) tab = 'visits';
-  S.tab = tab; renderTabs(true);
+  S.tab = tab; renderTabs(true); remember();
   $('#main').scrollTop = 0; window.scrollTo(0, 0);
   VIEWS[tab]();
 }

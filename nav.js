@@ -81,3 +81,31 @@ window.addEventListener('popstate', async () => {
 });
 // Using the app again after cancelling the exit puts the back-button handling back in place.
 document.addEventListener('click', () => { if (!NAV.armed && S.who && $('#tabs') && !$('#tabs').hidden) armBack(); }, true);
+
+/* ───────── pull down at the top to refresh the current tab (keeps you where you are) ───────── */
+(function pull() {
+  let sy = 0, dy = 0, on = false, busy = false;
+  const ptr = () => $('#ptr');
+  document.addEventListener('touchstart', e => {
+    on = !busy && e.touches.length === 1 && window.scrollY <= 0 && !$('#layer .scrim') && !!S.who && !$('#tabs').hidden && !!e.target.closest('#main, #top');
+    sy = e.touches[0].clientY; dy = 0;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!on) return;
+    dy = e.touches[0].clientY - sy;
+    if (dy <= 0 || window.scrollY > 0) { ptr().style.opacity = 0; return; }
+    const d = Math.min(90, dy * 0.5);
+    ptr().style.transition = 'none';
+    ptr().style.opacity = Math.min(1, d / 50);
+    ptr().style.transform = `translateY(${d - 30}px) rotate(${d * 4}deg)`;
+  }, { passive: true });
+  document.addEventListener('touchend', async () => {
+    if (!on) return; on = false;
+    const p = ptr();
+    if (dy * 0.5 < 60) { p.style.transition = 'all .2s'; p.style.opacity = 0; p.style.transform = 'translateY(-30px)'; return; }
+    busy = true; p.classList.add('spin'); p.style.transition = 'all .2s'; p.style.transform = 'translateY(30px)';
+    S.cache.dash = null; S.cache.entities = null; S.cache.people = null; S.settings = null; S.dir = null;
+    try { await Promise.all([VIEWS[S.tab](), checkForUpdate(), flushOutbox()]); } catch (e) { /* the view shows its own error */ }
+    p.classList.remove('spin'); p.style.opacity = 0; p.style.transform = 'translateY(-30px)'; busy = false;
+  }, { passive: true });
+})();
