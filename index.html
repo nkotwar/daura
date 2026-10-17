@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daura</title>
+<meta name="description" content="Daura: visit tracking for Udaipur RO. Assigned visits, visit reports with geotagged photos, and an admin dashboard.">
+<meta name="theme-color" content="#F3F5F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E141D" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-maskable-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header class="top" id="top"></header>
+  <main id="main" tabindex="-1"></main>
+</div>
+<nav class="tabs" id="tabs" hidden aria-label="Sections"><div class="tabs-inner" id="tabs-inner"></div></nav>
+<div id="layer"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-msg"></span></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="https://accounts.google.com/gsi/client" async></script>
+<script src="config.js"></script>
+<script src="version.js"></script>
+<script src="core.js"></script>
+<script src="auth.js"></script>
+<script src="visits.js"></script>
+<script src="profile.js"></script>
+<script src="admin.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

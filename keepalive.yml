@@ -1,0 +1,30 @@
+# Keeps the free Supabase project awake: it pauses after 7 days with no use.
+# Runs every 5 days (and on demand from the Actions tab). Reads the address and public key from config.js.
+# It also updates .github/keepalive.txt, because GitHub turns off scheduled jobs in repos with no activity for 60 days.
+name: Keep Daura awake
+on:
+  schedule:
+    - cron: '23 4 */5 * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ping the database
+        run: |
+          URL=$(grep -oE "supabaseUrl:\s*'[^']+'" config.js | sed -E "s/.*'([^']+)'/\1/")
+          KEY=$(grep -oE "supabaseKey:\s*'[^']+'" config.js | sed -E "s/.*'([^']+)'/\1/")
+          CODE=$(curl -s -o /tmp/out -w '%{http_code}' -X POST "$URL/rest/v1/rpc/ping" -H "apikey: $KEY" -H 'Content-Type: application/json' -d '{}')
+          echo "HTTP $CODE: $(cat /tmp/out)"
+          test "$CODE" = "200"
+      - name: Record the run
+        run: |
+          date -u +%Y-%m-%dT%H:%MZ > .github/keepalive.txt
+          git config user.name 'daura-keepalive'
+          git config user.email 'actions@users.noreply.github.com'
+          git add .github/keepalive.txt
+          git commit -m 'keep-alive' || true
+          git push || true
