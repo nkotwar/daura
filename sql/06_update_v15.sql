@@ -42,9 +42,14 @@ revoke all on public.deletions from anon, authenticated;
 
 create or replace function daura_private.log_delete() returns trigger
 language plpgsql security definer set search_path = public as $$
+declare k text;
 begin
-  insert into public.deletions(tbl, key) values (tg_table_name,
-    case when tg_table_name = 'visit_joint' then old.visit_id::text || ':' || old.emp_id::text else old.id::text end);
+  if tg_table_name = 'visit_joint' then
+    k := (to_jsonb(old) ->> 'visit_id') || ':' || (to_jsonb(old) ->> 'emp_id');
+  else
+    k := to_jsonb(old) ->> 'id';
+  end if;
+  insert into public.deletions(tbl, key) values (tg_table_name, k);
   return old;
 end $$;
 do $$ declare t text; begin

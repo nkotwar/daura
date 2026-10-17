@@ -169,6 +169,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 16 | New name **TASC Connect** and logo (also on the summary image, Excel and photo stamps). Admin notifications of activity; new visits now show in Activity | Run `sql/07_update_v16.sql`, then section 8 if you want notifications |
 | 17 | Pull-down emblem spins without the extra ring; clearer message when a request reason is too short | None |
 | 18 | "Log visit" is now "Submit Visit Report" (button, form title, hints) | None |
+| 19 | Fix: deleting failed with *record "old" has no field "visit_id"*. Photos are now removed only after the visit is deleted | Run `sql/08_fix_v18.sql` once |
 
 ---
 

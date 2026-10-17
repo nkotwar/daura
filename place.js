@@ -210,10 +210,11 @@ async function openVisit(id) {
 }
 
 async function deleteVisitWithPhotos(id, photos) {
-  if (photos && photos.length) await sb.storage.from('photos').remove(photos.map(p => p.path));
+  // the visit first: if the database refuses, the photos are still there
   const gone = await q(sb.from('visits').delete().eq('id', id).select('id'));
   if (!gone.length) throw { message: 'NOT_ALLOWED', hint: 'This visit can no longer be deleted. It may have been verified.' };
   dropVisit(id);
+  if (photos && photos.length) await sb.storage.from('photos').remove(photos.map(p => p.path)).catch(() => {});
 }
 
 function refreshCurrent() { closeSheet(); if (VIEWS[S.tab]) VIEWS[S.tab](); }
