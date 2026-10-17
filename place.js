@@ -71,7 +71,7 @@ async function openPlace(e, assignment) {
   const asgVisited = !!(assignment && me && tl.some(v => v.visitor_emp === me.emp_id));
   let action = '';
   if (!me) action = '';
-  else if (!latest) action = `<button class="btn block" id="pl-log">${ICON.pin} Log visit</button>`;
+  else if (!latest) action = `<button class="btn block" id="pl-log">${ICON.pin} Submit Visit Report</button>`;
   else if (latest.closure) action = `<div class="note">Closed: <b>${closureLabel(latest.closure)}</b> (Visit ${latest.visit_no}).${S.who.admin ? ' <button class="linkbtn" id="pl-reopen">Reopen</button>' : ' Ask the admin if it needs reopening.'}</div>`;
   else if (latest.status === 'verified') action = `<button class="btn block" id="pl-fu">+ Add follow-up · Visit ${latest.visit_no + 1}</button>`;
   else action = `<div class="note">A follow-up can be added once Visit ${latest.visit_no} is verified.</div>`;

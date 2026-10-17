@@ -17,7 +17,7 @@ function aboutHTML() {
     <ol class="ab-steps">
       <li><b>Open</b><span>To do lists your allotted places, overdue first.</span></li>
       <li><b>Go</b><span>Find on Maps takes you there.</span></li>
-      <li><b>Log</b><span>Who you met, their banking, the potential and what came of it.</span></li>
+      <li><b>Report</b><span>Submit Visit Report: who you met, their banking, the potential and what came of it.</span></li>
       <li><b>Photograph</b><span>Up to four. Photos taken in TASC Connect are stamped and pin the place on the map.</span></li>
       <li><b>Verify</b><span>Your branch head checks it. Branch heads' and RO visits go to the Regional Office.</span></li>
       <li><b>Follow up</b><span>Once verified, add Visit 2, 3… or close it: account opened, rejected or not feasible.</span></li>

@@ -20,7 +20,7 @@ async function openVisitForm(opts) {
     joint: new Set(opts.joint || []), photos: (opts.photos || []).map(p => ({ ...p, existing: true })), removed: []
   };
   const no = v.visit_no || opts.nextNo || 1;
-  const title = (F.isNew ? (no > 1 ? `Follow-up · Visit ${no}` : 'Log visit') : `Edit Visit ${no}`);
+  const title = (F.isNew ? (no > 1 ? `Follow-up · Visit ${no}` : 'Submit Visit Report') : `Edit Visit ${no}`);
   const body = openSheet(title, formHTML(F, no));
   bindForm(body, F);
   if (F.isNew) refreshLocation(body, F);
@@ -103,7 +103,7 @@ function formHTML(F, no) {
   </div>
 
   <p class="hint" id="f-err" style="color:var(--bad)"></p>
-  <button class="btn block" id="f-save">${F.isNew ? 'Submit visit' : 'Save changes'}</button>`;
+  <button class="btn block" id="f-save">${F.isNew ? 'Submit Visit Report' : 'Save changes'}</button>`;
 }
 
 function locText(p) {
@@ -253,7 +253,7 @@ async function saveForm(body, F) {
     toast(r === 'queued' ? 'No signal. Saved on this phone; it will send by itself.' : (F.isNew ? 'Visit submitted' : 'Changes saved'), 3500);
     if (VIEWS[S.tab]) VIEWS[S.tab]();   // redraw from the phone's copy (the saved visit is already in it)
   } catch (e) {
-    btn.disabled = false; btn.textContent = F.isNew ? 'Submit visit' : 'Save changes';
+    btn.disabled = false; btn.textContent = F.isNew ? 'Submit Visit Report' : 'Save changes';
     err(errText(e));
   }
 }

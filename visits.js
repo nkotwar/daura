@@ -69,7 +69,7 @@ async function drawTodo(el, noFetch) {
     return;
   }
   const emptyMsg = { overdue: ['Nothing overdue', 'Well done. Every visit due so far has been logged.'], today: ['Nothing due today', 'Check Upcoming for what is next.'],
-    upcoming: ['Nothing coming up', 'No more allotted visits after today.'], hold: ['Nothing on hold', 'Allotments you asked the admin to reassign or remove wait here, locked, until the admin decides.'], done: ['No allotted visits logged yet', 'Open a place under Overdue, Today or Upcoming and tap Log visit.'] }[f];
+    upcoming: ['Nothing coming up', 'No more allotted visits after today.'], hold: ['Nothing on hold', 'Allotments you asked the admin to reassign or remove wait here, locked, until the admin decides.'], done: ['No allotted visits logged yet', 'Open a place under Overdue, Today or Upcoming and tap Submit Visit Report.'] }[f];
   el.innerHTML = `
     <div class="stats">
       <div class="stat ${g.overdue.length ? 'bad' : ''}"><b>${g.overdue.length}</b><span>Overdue</span></div>
