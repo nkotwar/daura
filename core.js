@@ -33,6 +33,15 @@ const ICON = {
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>'
 };
 
+/* Friendly empty state that fills the section: icon in a soft circle, a title, a line of help, optional buttons. */
+const emptyState = (icon, title, text, actions = '') =>
+  `<div class="empty big"><div class="eic">${icon}</div><h4>${title}</h4><p>${text}</p>${actions ? `<div class="eact">${actions}</div>` : ''}</div>`;
+/* Buttons inside a section that jump to another section of the same tab: data-goto="<pane id>" */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-goto]'); if (!b) return;
+  const t = $(`#main .pseg button[data-pid="${b.dataset.goto}"]`); if (t) t.click();
+});
+
 function toast(msg, ms = 2600) {
   const t = $('#toast'); $('#toast-msg').textContent = msg; t.classList.add('on');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), ms);

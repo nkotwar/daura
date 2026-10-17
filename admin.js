@@ -48,7 +48,7 @@ async function admVerify() {
         <div class="avatar">${esc(initials(personName(v.visitor)))}</div>
         <div class="grow"><div class="t">${esc(v.entity.name)} · V${v.visit_no}</div>
           <div class="s">${esc(personName(v.visitor))} · ${esc(bname.get(v.visitor_branch) || '')} · ${fmtDateTime(v.visited_at)}</div></div>
-        <span class="chev">${ICON.chev}</span></button>`).join('')}</div>` : `<div class="empty">${ICON.shield}<p>Nothing waiting.</p></div>`}`;
+        <span class="chev">${ICON.chev}</span></button>`).join('')}</div>` : emptyState(ICON.shield, f === 'needs' ? 'Nothing needs you' : 'Nothing waiting', f === 'needs' ? 'Visits by branch heads and RO staff come here for your check. Branch heads verify their own staff.' : 'Every logged visit has been verified.')}`;
   $$('[data-avf]').forEach(b => b.onclick = () => { S.cache.avf = b.dataset.avf; admVerify(); });
   $$('[data-v]', admPane('verify')).forEach(b => b.onclick = () => openVisit(b.dataset.v));
 }
@@ -76,7 +76,7 @@ async function admRequests() {
           <span class="grow"></span>
           <button class="btn ghost small" data-dec="${r.id}">Decline</button>
           <button class="btn small" data-ok="${r.id}">Approve</button></div></div>`).join('')
-      : `<div class="empty">${ICON.shield}<p>No requests waiting.</p></div>`}
+      : emptyState(ICON.shield, 'No requests waiting', 'When staff ask to delete a visit, remove or reassign an allotment, or unverify a visit to correct it, the request lands here for you to approve or decline.')}
     ${done.length ? `<h2>Recently decided</h2><div class="list">${done.map(r => `<div class="item" style="cursor:default"><div class="grow">
         <div class="t">${RQ_LABEL[r.kind]}</div><div class="s">${target(r)} · ${esc(personName(r.raised_by))}${r.decision_note ? ' · ' + esc(r.decision_note) : ''}</div></div>
         <span class="badge ${r.status === 'approved' ? 'ok' : ''}">${r.status === 'approved' ? 'Approved' : 'Declined'}</span></div>`).join('')}</div>` : ''}`;
@@ -136,7 +136,7 @@ async function admPeople(fresh = true) {
           ${p.blocked ? '<span class="badge bad">Blocked</span>' : !p.active ? '<span class="badge">Inactive</span>'
             : p.logins.length ? `<span class="badge ok">${p.logins.length > 1 ? p.logins.length + ' Gmails' : 'Signed up'}</span>` : '<span class="badge">Not yet</span>'}
           ${p.role !== 'field' ? `<span class="badge acc">${roleLabel(p.role)}</span>` : ''}
-        </div></button>`).join('') : '<div class="empty">No one matches.</div>';
+        </div></button>`).join('') : emptyState(ICON.search, 'No one matches', 'Try part of a name, an Emp ID, a branch or a Gmail.');
   };
   draw();
   $('#pq').oninput = draw;
@@ -290,5 +290,5 @@ async function admActivity() {
     return `<div class="item" style="cursor:default;align-items:flex-start">
       <div class="grow"><div style="font-size:14px"><b>${esc(who)}</b> ${what}</div><div class="s">${fmtDateTime(a.at)}</div></div>
       ${bad ? '<span class="badge bad">Check</span>' : ''}</div>`; }).join('')}</div>`
-    : '<div class="empty">Nothing yet. Sign-ins and changes will show up here.</div>';
+    : emptyState(ICON.user, 'Nothing yet', 'Sign-ins, new Gmail links, failed date-of-birth tries, role changes and staff-list uploads will show up here.');
 }

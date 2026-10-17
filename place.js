@@ -25,7 +25,7 @@ async function drawPlaces(el) {
     $('#el').innerHTML = rows.length ? rows.map(e => `<button class="item" data-e="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div>
         <div class="s">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}</div></div>
         ${e.closure ? `<span class="badge ${e.closure === 'account_opened' ? 'ok' : ''}">${closureLabel(e.closure)}</span>` : ''}<span class="chev">${ICON.chev}</span></button>`).join('')
-      : '<div class="empty">No place by that name. Add it as a new place.</div>';
+      : emptyState(ICON.search, 'No place by that name', 'Check the spelling, or add it as a new place with the button above.');
   };
   draw();
   $('#eq').oninput = draw;

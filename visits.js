@@ -74,6 +74,14 @@ async function drawTodo(el) {
   S.cache.visitFilter = f;
   const today = todayISO(); const rows = g[f];
   const chip = (id, label) => `<button class="chip ${f === id ? 'on' : ''}" data-f="${id}">${label}<b>${g[id].length}</b></button>`;
+  if (!S.cache.visits.asg.length) {
+    el.innerHTML = emptyState(ICON.calendar, 'Nothing allotted to you yet',
+      'When the Regional Office allots visits to you, they show up here with their due dates.',
+      '<button class="btn soft" data-goto="places">Visit a place on your own</button>');
+    return;
+  }
+  const emptyMsg = { overdue: ['Nothing overdue', 'Well done. Every visit due so far has been logged.'], today: ['Nothing due today', 'Check Upcoming for what is next.'],
+    upcoming: ['Nothing coming up', 'No more allotted visits after today.'], done: ['No allotted visits logged yet', 'Open a place under Overdue, Today or Upcoming and tap Log visit.'] }[f];
   el.innerHTML = `
     <div class="stats">
       <div class="stat ${g.overdue.length ? 'bad' : ''}"><b>${g.overdue.length}</b><span>Overdue</span></div>
@@ -87,9 +95,9 @@ async function drawTodo(el) {
           <div class="s">${esc(a.entity.type)}${a.entity.area ? ' · ' + esc(a.entity.area) : ''}</div></div>
         <div style="text-align:right;flex:none"><div class="mono" style="font-size:13px">${fmtDate(a.scheduled_on)}</div>
           ${late ? `<span class="badge bad">${late} d late</span>` : ''}</div></button>`; }).join('')}</div>`
-      : `<div class="empty">${ICON.calendar}<p>${f === 'done' ? 'No allotted visits logged yet.' : 'Nothing here.'}</p></div>`}
+      : emptyState(f === 'overdue' ? ICON.shield : ICON.calendar, emptyMsg[0], emptyMsg[1])}
     <div class="spacer"></div>
-    <p class="hint" style="text-align:center">Visiting somewhere not on your list? Use <b>Places</b> to find it or add it.</p>`;
+    <p class="hint" style="text-align:center">Visiting somewhere not on your list? <button class="linkbtn" data-goto="places">Find or add it in Places</button></p>`;
   $$('.chip[data-f]', el).forEach(b => b.onclick = () => { S.cache.visitFilter = b.dataset.f; drawTodo(el); });
   $$('[data-a]', el).forEach(b => b.onclick = () => { const a = S.cache.visits.asg.find(x => x.id === b.dataset.a); openPlace(a.entity, a); });
 }
@@ -102,6 +110,12 @@ async function drawMine(el) {
   vis.forEach(v => { const c = latestByEntity.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latestByEntity.set(v.entity_id, v); });
   const due = [...latestByEntity.values()].filter(v => v.followup_on && v.followup_on <= soon && !v.closure).sort((a, b) => a.followup_on.localeCompare(b.followup_on));
   const ver = vis.filter(v => v.status === 'verified').length;
+  if (!vis.length && !waiting.length) {
+    el.innerHTML = emptyState(ICON.pin, 'No visits logged yet',
+      'Visits you log appear here with their verification status, and follow-ups due show at the top.',
+      '<button class="btn" data-goto="todo">See my allotted visits</button><button class="btn ghost" data-goto="places">Find a place</button>');
+    return;
+  }
   el.innerHTML = `
     ${waiting.length ? `<h2>Waiting to send (${waiting.length})</h2><div class="list">${waiting.map(w => `<div class="item" style="cursor:default">
         <div class="grow"><div class="t">${esc(w.entityName)}</div><div class="s">${w.error ? `<span style="color:var(--bad)">${esc(w.error)}</span>` : 'Saved on this phone ' + ago(w.savedAt) + '. Sends when online.'}</div></div>
@@ -116,7 +130,7 @@ async function drawMine(el) {
         <div class="avatar mono" style="font-size:12px">V${v.visit_no}</div>
         <div class="grow"><div class="t">${esc(v.entity.name)}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}</div></div>
         <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Submitted'}</span></button>`).join('')}</div>`
-      : `<div class="empty">${ICON.pin}<p>No visits logged yet.</p></div>`}`;
+      : '<p class="hint">Nothing sent yet. Saved visits above go out as soon as there is signal.</p>'}`;
   $$('[data-v]', el).forEach(b => b.onclick = () => openVisit(b.dataset.v));
   $$('[data-pe]', el).forEach(b => b.onclick = () => { const v = vis.find(x => x.entity_id === b.dataset.pe); openPlace(v.entity); });
   $$('[data-wd]', el).forEach(b => b.onclick = async () => {
@@ -131,6 +145,10 @@ async function drawVerify(el) {
   const me = S.who.me;
   const rows = await q(sb.from('visits').select('id, visit_no, visitor, visited_at, outcome, closure, entity:entities(name, type)')
     .eq('visitor_branch', me.branch_code).eq('status', 'submitted').neq('visitor', me.emp_id).order('visited_at', { ascending: true }));
+  if (!rows.length) {
+    el.innerHTML = emptyState(ICON.shield, 'All caught up', `When ${esc(me.branch)} staff log visits, they wait here for your check. Open one, look at the photos and details, then tap Verify.`);
+    return;
+  }
   el.innerHTML = `<p class="muted" style="margin-top:0">Visits by ${esc(me.branch)} staff waiting for your check. Open one, look at the photos and details, then tap <b>Verify</b>.</p>
     ${rows.length ? `<div class="list">${rows.map(v => `<button class="item" data-v="${v.id}">
         <div class="avatar">${esc(initials(personName(v.visitor)))}</div>

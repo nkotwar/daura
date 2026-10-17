@@ -230,7 +230,7 @@ function overdueMsg(o) {
 }
 function offRows(M) {
   const list = S.cache.offF === 'all' ? M.byOff : M.byOff.filter(o => o.overdue);
-  if (!list.length) return '<div class="empty">No officer has an overdue visit.</div>';
+  if (!list.length) return '<div class="empty">No officer has an overdue visit. 🎉</div>';
   return list.map(o => `<div class="item"><button class="grow" data-off="${o.emp}" style="all:unset;cursor:pointer;flex:1;min-width:0">
       <div class="t">${esc(o.name)}</div><div class="s">${esc(o.branch)} · ${o.visited}/${o.total} visited${o.own ? ` · +${o.own} own` : ''}${o.delayN ? ` · avg delay ${(o.delaySum / o.delayN).toFixed(1)} d` : ''}</div></button>
     ${o.overdue ? `<span class="badge bad">${o.overdue} overdue</span>` : `<span class="badge ok">${pct(o.visited, o.total)}%</span>`}

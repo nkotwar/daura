@@ -226,3 +226,16 @@ html,body{overscroll-behavior-y:contain}
 .track{display:flex;will-change:transform}
 .pane{flex:0 0 100%;min-width:0;padding:0 16px;box-sizing:border-box}
 .pane.off{height:0;overflow:hidden}
+
+/* Sections fill the screen (v8): swipe works on empty space too; friendlier empty states */
+.track{min-height:calc(100dvh - 200px - env(safe-area-inset-top) - env(safe-area-inset-bottom));align-items:stretch}
+.pane{display:flex;flex-direction:column}
+.pane > *{flex-shrink:0}
+.pane.off{height:0;min-height:0}
+.empty.big{flex:1 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px 48px;min-height:340px}
+.empty .eic{width:76px;height:76px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;margin-bottom:16px}
+.empty .eic svg{width:36px;height:36px;margin:0;color:var(--accent)}
+.empty h4{margin:0 0 6px;font-size:17px;color:var(--ink);font-weight:650}
+.empty.big p{margin:0;max-width:310px;line-height:1.5}
+.eact{display:flex;flex-direction:column;gap:10px;margin-top:20px;width:100%;max-width:280px}
+.pager{padding-bottom:calc(96px + env(safe-area-inset-bottom));margin-bottom:calc(-96px - env(safe-area-inset-bottom))}   /* swipe area reaches down to the tab bar */

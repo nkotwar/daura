@@ -7,7 +7,7 @@
    and on release it snaps with momentum. Neighbours are loaded ahead of time so they are ready to show. */
 function mountPager(host, panes, activeId, onChange) {
   let i = Math.max(0, panes.findIndex(p => p.id === activeId));
-  host.innerHTML = `<div class="seg seg-scroll pseg">${panes.map((p, k) => `<button data-pi="${k}" class="${k === i ? 'on' : ''}">${p.label}<span class="segn" id="${p.badge || ''}"></span></button>`).join('')}</div>
+  host.innerHTML = `<div class="seg seg-scroll pseg">${panes.map((p, k) => `<button data-pi="${k}" data-pid="${p.id}" class="${k === i ? 'on' : ''}">${p.label}<span class="segn" id="${p.badge || ''}"></span></button>`).join('')}</div>
     <div class="pager"><div class="track">${panes.map(p => `<section class="pane" data-pane="${p.id}"></section>`).join('')}</div></div>`;
   const pager = $('.pager', host), track = $('.track', host), els = $$('.pane', host), btns = $$('.pseg button', host);
   const loaded = new Set();
