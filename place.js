@@ -232,10 +232,29 @@ function refreshCurrent() { closeSheet(); S.cache.entities = null; if (VIEWS[S.t
 /* "Allotted to" on a place's page. Viewers and admin can tap a name to see that person's summary. */
 async function loadAssignees(el, entityId) {
   if (!el) return;
-  let rows;
+  el.innerHTML = '<h4 class="dh">Allotted to</h4><p class="hint" style="margin:0">Checking…</p>';
+  let rows, dbNote = '';
   try { rows = await rpc('entity_assignees', { p_entity: entityId }); }
-  catch (e) { return; }   // database update not run yet: say nothing rather than something wrong
-  if (!rows.length) { el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>'; return; }
+  catch (e) {
+    // The lookup needs the database update (sql/05_update_v12.sql). Until it is run, admin and viewers
+    // can still read allotments directly; field staff cannot, so they see nothing rather than something wrong.
+    if (!S.who.viewer) { el.innerHTML = ''; return; }
+    try {
+      const [asg, vis] = await Promise.all([
+        q(sb.from('assignments').select('id, assignee, scheduled_on').eq('entity_id', entityId).eq('status', 'open').order('scheduled_on')),
+        q(sb.from('visits').select('id, assignment_id, visitor, visit_no, status, visited_at').eq('entity_id', entityId).order('visit_no'))]);
+      await loadBasics();
+      rows = asg.map(a => {
+        const fv = vis.find(v => v.assignment_id === a.id) || vis.find(v => v.visitor !== a.assignee);
+        const p = S.dir.get(a.assignee) || {};
+        return { assignment_id: a.id, emp_id: a.assignee, name: p.name || 'Emp ' + a.assignee, designation: p.designation, branch: p.branch,
+          scheduled_on: a.scheduled_on, visited: !!fv, verified: !!fv && fv.status === 'verified', on_hold: false,
+          visited_by_emp: fv ? fv.visitor : null, visited_by: fv ? personName(fv.visitor) : null, visited_at: fv ? fv.visited_at : null };
+      });
+      if (S.who.admin) dbNote = '<p class="hint" style="color:var(--warn)">Staff can\'t see this yet: run <span class="mono">sql/05_update_v12.sql</span> in Supabase.</p>';
+    } catch (e2) { el.innerHTML = `<p class="hint">${esc(errText(e2))}</p>`; return; }
+  }
+  if (!rows.length) { el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>' + dbNote; return; }
   const today = todayISO(), canOpen = S.who.admin;
   el.innerHTML = `<h4 class="dh">Allotted to</h4><div class="list">${rows.map(r => {
     const st = r.verified ? '<span class="badge ok">Verified</span>' : r.visited ? '<span class="badge acc">Visited</span>'
@@ -247,6 +266,6 @@ async function loadAssignees(el, entityId) {
       <div class="avatar">${esc(initials(r.name))}</div>
       <div class="grow"><div class="t">${esc(cleanName(r.name))}${me ? ' (you)' : ''}</div><div class="s">${esc(r.designation || '')}${r.branch ? ' · ' + esc(r.branch) : ''}${
         r.visited_by_emp && r.visited_by_emp !== r.emp_id ? `<br><b>Visited by ${S.who.me && r.visited_by_emp === S.who.me.emp_id ? 'you' : esc(cleanName(r.visited_by))}</b> · ${fmtDate(r.visited_at)}` : ''}</div></div>
-      ${st}${canOpen ? `<span class="chev">${ICON.chev}</span>` : ''}</${canOpen ? 'button' : 'div'}>`; }).join('')}</div>`;
+      ${st}${canOpen ? `<span class="chev">${ICON.chev}</span>` : ''}</${canOpen ? 'button' : 'div'}>`; }).join('')}</div>${dbNote}`;
   $$('[data-st]', el).forEach(b => b.onclick = () => openStaff(+b.dataset.st));
 }
