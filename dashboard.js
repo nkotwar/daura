@@ -20,7 +20,7 @@ async function loadDashData() { await loadBasics(); S.cache.dash = qDash(); retu
 /* Turn raw rows into everything the dashboard shows, for the chosen filters. */
 function dashModel(D, f) {
   const today = todayISO();
-  const tmr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString('en-CA'); })();
+  const tmr = nextWorkingDay();   // next working day: skips Sundays and 2nd / 4th Saturdays
   const staff = e => S.dir.get(e) || {};
   const bname = new Map(D.branches.map(b => [b.code, b.name]));
   const ro = new Set(D.branches.filter(b => b.is_ro).map(b => b.code));
@@ -70,10 +70,12 @@ function dashModel(D, f) {
 
   // by branch (assignee's branch for allotments)
   const byBranch = new Map();
-  const bb = code => { if (!byBranch.has(code)) byBranch.set(code, { code, name: bname.get(code) || '—', total: 0, visited: 0, verified: 0, overdue: 0, tmr: 0 }); return byBranch.get(code); };
+  const bb = code => { if (!byBranch.has(code)) byBranch.set(code, { code, name: bname.get(code) || '—', total: 0, visited: 0, verified: 0, overdue: 0, today: 0, tmr: 0 }); return byBranch.get(code); };
   // every branch with staff appears, even with nothing allotted (unless one branch is filtered)
   new Set([...S.dir.values()].map(p => p.branch_code)).forEach(code => { if (code != null && (!f.branch || code === f.branch)) bb(code); });
-  rows.forEach(r => { const b = bb(staff(r.a.assignee).branch_code); b.total++; if (r.v) b.visited++; if (r.st === 'verified') b.verified++; if (r.st === 'overdue') b.overdue++; if (!r.v && r.a.scheduled_on === tmr) b.tmr++; });
+  rows.forEach(r => { const b = bb(staff(r.a.assignee).branch_code); b.total++; if (r.v) b.visited++; if (r.st === 'verified') b.verified++; if (r.st === 'overdue') b.overdue++;
+    if (r.st === 'notdue' && r.a.scheduled_on === today) b.today++;
+    if (r.st === 'notdue' && r.a.scheduled_on > today && r.a.scheduled_on <= tmr) b.tmr++; });   // weekend-dated visits count towards the next working day
   // by officer
   const byOff = new Map();
   const oo = e => { if (!byOff.has(e)) byOff.set(e, { emp: e, name: cleanName(staff(e).name || 'Emp ' + e), branch: staff(e).branch || '', phone: staff(e).phone, total: 0, visited: 0, overdue: 0, own: 0, delaySum: 0, delayN: 0, pending: [] }); return byOff.get(e); };
@@ -85,7 +87,7 @@ function dashModel(D, f) {
   const waitingV = vis.filter(v => v.status === 'submitted');
   const waitOldest = waitingV.reduce((m, v) => !m || v.logged_at < m ? v.logged_at : m, null);
   return { today, tmr, rows, vis, n, visited, ageing, delays, onTime, avgDelay, followDue, biz, outcomes, products, banking, otherBanks,
-    byBranch: [...byBranch.values()].sort((a, b) => b.overdue - a.overdue || b.tmr - a.tmr || b.total - a.total || a.name.localeCompare(b.name)),
+    byBranch: [...byBranch.values()].sort((a, b) => b.overdue - a.overdue || b.today - a.today || b.tmr - a.tmr || b.total - a.total || a.name.localeCompare(b.name)),
     byOff: [...byOff.values()].sort((a, b) => b.overdue - a.overdue || a.name.localeCompare(b.name)),
     byType, waiting: waitingV.length, waitOldest, bname };
 }
@@ -150,8 +152,8 @@ async function viewDashboard(force = false) {
     </div>
 
     <div class="card"><h3>By branch</h3>
-      <div class="tbl"><table><thead><tr><th>Branch</th><th>Allotted</th><th>Visited</th><th>Overdue</th><th>Due ${shortDay(M.tmr)}</th><th>Done</th></tr></thead><tbody>
-      ${M.byBranch.map(b => `<tr data-br="${b.code}"><td>${esc(b.name)}</td><td class="mono">${b.total}</td><td class="mono">${b.visited}</td><td class="mono ${b.overdue ? 'bad' : ''}">${b.overdue}</td><td class="mono">${b.tmr || '·'}</td><td>${minibar(pct(b.visited, b.total))}</td></tr>`).join('') || '<tr><td colspan="6" class="hint">No branches.</td></tr>'}
+      <div class="tbl"><table><thead><tr><th>Branch</th><th>Allotted</th><th>Visited</th><th>Overdue</th><th>Due today</th><th>Due ${shortDay(M.tmr)}</th><th>Done</th></tr></thead><tbody>
+      ${M.byBranch.map(b => `<tr data-br="${b.code}"><td>${esc(b.name)}</td><td class="mono">${b.total}</td><td class="mono">${b.visited}</td><td class="mono ${b.overdue ? 'bad' : ''}">${b.overdue}</td><td class="mono ${b.today ? 'warn' : ''}">${b.today || '·'}</td><td class="mono">${b.tmr || '·'}</td><td>${minibar(pct(b.visited, b.total))}</td></tr>`).join('') || '<tr><td colspan="7" class="hint">No branches.</td></tr>'}
       </tbody></table></div>
       <p class="hint">Tap a branch to filter the whole dashboard to it.</p>
     </div>
@@ -197,6 +199,16 @@ async function viewDashboard(force = false) {
   loadGallery(f, M);
 }
 
+/* Next working day for a bank: skips Sundays and the 2nd and 4th Saturday of the month */
+function nextWorkingDay(from = new Date()) {
+  const d = new Date(from); d.setHours(12, 0, 0, 0);
+  for (;;) {
+    d.setDate(d.getDate() + 1);
+    const wd = d.getDay(), nth = Math.ceil(d.getDate() / 7);
+    if (wd === 0 || (wd === 6 && (nth === 2 || nth === 4))) continue;
+    return d.toLocaleDateString('en-CA');
+  }
+}
 const shortDay = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 const tile = (v, l, cls = '', go = '') => `<div class="stat ${cls} ${go && S.who.me ? 'tap' : ''}" ${go && S.who.me ? `data-goplace="${go}" role="button"` : ''}><b>${typeof v === 'number' ? v.toLocaleString('en-IN') : v}</b><span>${l}</span></div>`;
 const minibar = p => `<div class="mini" title="${p}% visited"><i style="width:${p}%"></i></div><span class="mono hint">${p}%</span>`;
@@ -300,17 +312,18 @@ async function summaryImage(M, f, D) {
   [['Verified', N.verified, P.ok], ['Visited', N.submitted, P.acc], ['Not due', N.notdue, P.mute], ['On hold', N.hold, P.warn], ['Overdue', N.overdue, P.bad]].forEach(([l, n, col], i) => {
     const lx = 60 + i * 200; x.fillStyle = col; x.fillRect(lx, y - 18, 18, 18); txt(`${l} ${n}`, lx + 28, y, { f: sans(500, 24) }); });
   // branch table: every branch
-  const cols = [['Allotted', 580], ['Visited', 710], ['Overdue', 850], [`Due ${shortDay(M.tmr)}`, 1020]];
+  const cols = [['Allotted', 470], ['Visited', 590], ['Overdue', 720], ['Due today', 865], [`Due ${shortDay(M.tmr)}`, 1020]];
   y = 640 + 40;
   txt('Branch', 60, y, { f: sans(700, 24) });
   cols.forEach(([h, X]) => txt(h, X, y, { f: sans(700, 24), a: 'right' }));
   y += 16; x.fillStyle = P.ink; x.fillRect(60, y, W - 120, 2);
   const cell = (b, Y, bold) => {
     const w = bold ? 700 : 500, R = { a: 'right' };
-    txt(b.name.length > 28 ? b.name.slice(0, 27) + '…' : b.name, 72, Y, { f: sans(w, 25) });
-    txt(String(b.total), 580, Y, { ...R, f: mono(w, 25) });
-    txt(String(b.visited), 710, Y, { ...R, f: mono(w, 25), c: b.visited ? P.ok : P.faint });
-    txt(String(b.overdue), 850, Y, { ...R, f: mono(bold ? 700 : 600, 25), c: b.overdue ? P.bad : P.faint });
+    txt(b.name.length > 24 ? b.name.slice(0, 23) + '…' : b.name, 72, Y, { f: sans(w, 25) });
+    txt(String(b.total), 470, Y, { ...R, f: mono(w, 25) });
+    txt(String(b.visited), 590, Y, { ...R, f: mono(w, 25), c: b.visited ? P.ok : P.faint });
+    txt(String(b.overdue), 720, Y, { ...R, f: mono(bold ? 700 : 600, 25), c: b.overdue ? P.bad : P.faint });
+    txt(b.today ? String(b.today) : '–', 865, Y, { ...R, f: mono(w, 25), c: b.today ? P.warn : P.faint });
     txt(b.tmr ? String(b.tmr) : '–', 1020, Y, { ...R, f: mono(w, 25), c: b.tmr ? P.warn : P.faint });
   };
   const rt = cell;
@@ -321,7 +334,7 @@ async function summaryImage(M, f, D) {
   });
   y += br.length * ROW;
   x.fillStyle = P.ink; x.fillRect(60, y + 2, W - 120, 2);
-  const tot = br.reduce((t, b) => ({ name: 'Total', total: t.total + b.total, visited: t.visited + b.visited, overdue: t.overdue + b.overdue, tmr: t.tmr + b.tmr }), { total: 0, visited: 0, overdue: 0, tmr: 0 });
+  const tot = br.reduce((t, b) => ({ name: 'Total', total: t.total + b.total, visited: t.visited + b.visited, overdue: t.overdue + b.overdue, today: t.today + b.today, tmr: t.tmr + b.tmr }), { total: 0, visited: 0, overdue: 0, today: 0, tmr: 0 });
   rt(tot, y + ROW - 10, true);
   // footer
   txt('TASC Connect · Built by Nitin Kotwar (139535), via PDUDAIRO', W / 2, H - 44, { f: sans(500, 22), c: P.faint, a: 'center' });
@@ -401,10 +414,10 @@ async function exportExcel(M, D) {
   function ws_fmt(c, z) { if (c) { c.z = z; c.s = { ...(c.s || {}), numFmt: z }; } }
 
   // Branches
-  const brRows = M.byBranch.map(b => [b.name, b.total, b.visited, b.verified, b.overdue, b.tmr, b.total ? b.visited / b.total : 0]);
+  const brRows = M.byBranch.map(b => [b.name, b.total, b.visited, b.verified, b.overdue, b.today, b.tmr, b.total ? b.visited / b.total : 0]);
   const wsBr = table('Branch-wise progress', [{ h: 'Branch', w: 26, t: 'text' }, { h: 'Allotted', w: 10, t: 'int' }, { h: 'Visited', w: 10, t: 'int' }, { h: 'Verified', w: 10, t: 'int' },
-    { h: 'Overdue', w: 10, t: 'int' }, { h: `Due ${shortDay(M.tmr)}`, w: 11, t: 'int' }, { h: 'Done %', w: 9, t: 'pct' }], brRows,
-    ['Total', sum(brRows, 1), sum(brRows, 2), sum(brRows, 3), sum(brRows, 4), sum(brRows, 5), sum(brRows, 1) ? sum(brRows, 2) / sum(brRows, 1) : 0]);
+    { h: 'Overdue', w: 10, t: 'int' }, { h: 'Due today', w: 10, t: 'int' }, { h: `Due ${shortDay(M.tmr)}`, w: 11, t: 'int' }, { h: 'Done %', w: 9, t: 'pct' }], brRows,
+    ['Total', sum(brRows, 1), sum(brRows, 2), sum(brRows, 3), sum(brRows, 4), sum(brRows, 5), sum(brRows, 6), sum(brRows, 1) ? sum(brRows, 2) / sum(brRows, 1) : 0]);
 
   // Officers
   const ofRows = M.byOff.map(o => [o.name, o.emp, o.branch, o.total, o.visited, o.overdue, o.own, o.delayN ? +(o.delaySum / o.delayN).toFixed(1) : '', o.total ? o.visited / o.total : 0]);
