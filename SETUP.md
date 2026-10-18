@@ -160,6 +160,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 24 | People opens on **Due**, count cards removed. Places has pills: All, Allotted, Overdue, Visited, Verified, Accounts opened, Not allotted. Dashboard tiles open the matching Places pill; Follow-ups due jumps to its list | None |
 | 25 | Every place in Places shows its status (Overdue, Due today/date, Visited, Verified, On hold, closed, Not allotted) and who it is allotted to / last visit | None |
 | 26 | Fix: Profile stuck loading (Gmails, photo storage). Server calls give up after 20 s with a Try again instead of spinning forever | None |
+| 27 | Visit report form: Headcount (and its Staff/Members dropdown) removed | None |
 
 ---
 

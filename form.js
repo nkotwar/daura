@@ -28,7 +28,7 @@ async function openVisitForm(opts) {
 
 function formHTML(F, no) {
   const e = F.entity;
-  const outcomes = setting('outcomes'); const kinds = setting('headcount_kinds');
+  const outcomes = setting('outcomes');
   return `
   <div class="card" style="margin-bottom:14px"><div style="font-weight:650">${esc(e.name)}</div>
     <div class="hint">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}${no > 1 ? ` · Visit ${no}` : ''}</div></div>
@@ -51,9 +51,6 @@ function formHTML(F, no) {
     <div class="seg" id="f-bank" style="margin-bottom:0">${[['us', 'Our bank'], ['other', 'Other bank'], ['none', 'None / not known']].map(([k, l]) =>
       `<button type="button" data-v="${k}" class="${F.banking_with === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="f-obw" ${F.banking_with === 'other' ? '' : 'hidden'}><label class="f" for="f-ob">Which bank(s)</label><input class="input" id="f-ob" value="${esc(F.other_bank)}" placeholder="e.g. SBI, HDFC"></div>
-    <label class="f" for="f-hc">Headcount</label>
-    <div class="g2"><input class="input mono" id="f-hc" type="number" inputmode="numeric" min="0" value="${esc(F.headcount)}" placeholder="0">
-      <select class="input" id="f-hk">${kinds.map(k => `<option ${F.headcount_kind === k ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
   </div>
 
   <div class="fs"><h4>Business</h4>
@@ -235,7 +232,6 @@ async function saveForm(body, F) {
     accuracy_m: F.pos && F.pos.acc != null ? F.pos.acc : null, loc_source: F.pos && F.pos.lat != null ? 'gps' : 'none',
     person_name: $b('#f-pn').value.trim() || null, person_designation: $b('#f-pd').value.trim() || null, person_mobile: mob || null,
     banking_with: F.banking_with || null, other_bank: F.banking_with === 'other' ? ($b('#f-ob').value.trim() || null) : null,
-    headcount: num('#f-hc'), headcount_kind: $b('#f-hc').value === '' ? null : $b('#f-hk').value,
     potential_rs: num('#f-pot'), products: [...F.products], outcome: outcome || null, remarks: $b('#f-rem').value.trim() || null,
     next_step: $b('#f-next').value.trim() || null, followup_on: $b('#f-fu').value || null,
     closure: F.closure || null, closure_note: F.closure ? ($b('#f-cn').value.trim() || null) : null,
