@@ -176,6 +176,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 37 | Summary image footer reads "TASC Connect · Central Bank of India · via PDUDAIRO" | None |
 | 38 | Date of birth: type it or tap the calendar button. Dashboard Type / Branch filters stay pinned under the header while scrolling | None |
 | 39 | Admin can **Delete this place** (with its allotments and visit reports); shows in Activity | Run `sql/13_update_v39.sql` |
+| 40 | Deleting a place asks you to type **delete** first | None |
 
 ---
 

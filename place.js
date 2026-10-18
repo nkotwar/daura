@@ -212,7 +212,18 @@ async function openPlace(e, assignment) {
 async function deletePlace(e) {
   const nv = visitsOf(e.id).length, na = all('assignments').filter(a => a.entity_id === e.id).length;
   const what = [na ? `its allotment${na > 1 ? 's' : ''}` : '', nv ? `<b>${nv} visit report${nv > 1 ? 's' : ''}</b> with their photos` : ''].filter(Boolean).join(' and ');
-  const ok = await confirmSheet('Delete this place?', `<b>${esc(e.name)}</b> will be removed from TASC Connect${what ? ', along with ' + what : ''}. This can't be undone.`, 'Delete place', true);
+  const ok = await new Promise(res => {
+    const body = openSheet('Delete this place?', `<p style="margin-top:0"><b>${esc(e.name)}</b> will be removed from TASC Connect${what ? ', along with ' + what : ''}. This can't be undone.</p>
+      <label class="f" for="del-t">Type <b>delete</b> to confirm</label>
+      <input class="input" id="del-t" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="delete">
+      <div class="row" style="margin-top:14px"><button class="btn ghost grow" id="del-no">Cancel</button><button class="btn danger grow" id="del-ok" disabled>Delete place</button></div>`, () => res(false));
+    const t = $('#del-t', body), go = $('#del-ok', body);
+    t.oninput = () => { go.disabled = t.value.trim().toLowerCase() !== 'delete'; };
+    t.onkeydown = ev => { if (ev.key === 'Enter' && !go.disabled) go.click(); };
+    $('#del-no', body).onclick = () => res(false);
+    go.onclick = () => res(true);
+    setTimeout(() => t.focus(), 250);
+  });
   if (!ok) return openPlace(e);
   try {
     const r = await rpc('admin_delete_place', { p_entity: e.id });
