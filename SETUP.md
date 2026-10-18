@@ -173,6 +173,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 34 | Branch table, summary image and Excel get a **Due today** column; the next column is now the next working day (skips Sundays and 2nd / 4th Saturdays, and counts weekend-dated visits) | None |
 | 35 | Dashboard: branches A–Z with Udaipur RO first (also in image and Excel); order is By branch, Progress, By type, Officers; Officers pill "Overdue / due today"; tapping a branch opens its panel instead of redrawing. Date of birth is typed as DD-MM-YYYY | None |
 | 36 | Dashboard "Waiting for verification" shows only for the admin | None |
+| 37 | Summary image footer reads "TASC Connect · Central Bank of India · via PDUDAIRO" | None |
 
 ---
 

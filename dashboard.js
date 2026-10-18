@@ -375,7 +375,7 @@ async function summaryImage(M, f, D) {
   const tot = br.reduce((t, b) => ({ name: 'Total', total: t.total + b.total, visited: t.visited + b.visited, overdue: t.overdue + b.overdue, today: t.today + b.today, tmr: t.tmr + b.tmr }), { total: 0, visited: 0, overdue: 0, today: 0, tmr: 0 });
   rt(tot, y + ROW - 10, true);
   // footer
-  txt('TASC Connect · Built by Nitin Kotwar (139535), via PDUDAIRO', W / 2, H - 44, { f: sans(500, 22), c: P.faint, a: 'center' });
+  txt('TASC Connect · Central Bank of India · via PDUDAIRO', W / 2, H - 44, { f: sans(500, 22), c: P.faint, a: 'center' });
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   const name = `TASC-Connect-summary-${todayISO()}.png`;
   const file = new File([blob], name, { type: 'image/png' });
