@@ -14,29 +14,8 @@ function startApp() {
   } catch (e) { /* storage blocked */ }
   setTimeout(flushOutbox, 1500);
   if (!S.who.me && S.who.admin) S.tab = 'admin';
-  const link = takeLink(location.href);
   header(); renderTabs(true); show(S.tab);
   armBack();
-  if (link) setTimeout(link, 300);
-}
-
-/* Links from admin notifications: ?go=admin:requests opens a tab and section; ?open=visit:<id> opens that visit. */
-function takeLink(href) {
-  const q = new URL(href).searchParams, go = q.get('go'), open = q.get('open');
-  if (!go && !open) return null;
-  try { history.replaceState(history.state, '', location.pathname); } catch (e) { /* ignore */ }
-  if (go) { const [tab, seg] = go.split(':'); S.tab = tab; if (tab === 'admin' && seg) S.cache.adminSeg = seg; }
-  if (open && open.startsWith('visit:')) return () => openVisit(open.slice(6)).catch(() => toast('That visit is no longer there'));
-  return null;
-}
-function followLink(href) {
-  if (!S.who || S.who.state !== 'linked') return;
-  const before = S.tab, then = takeLink(href);
-  syncAndRefresh().catch(() => {}).then(() => {
-    if (S.tab !== before) { const t = S.tab; S.tab = before; show(t); }
-    const host = $('#adm-host'); if (S.tab === 'admin' && host && host._pager && host._pager.go) host._pager.go(S.cache.adminSeg);
-    if (then) then();
-  });
 }
 
 function remember() {
@@ -80,8 +59,5 @@ document.addEventListener('visibilitychange', () => {
   if (Date.now() - DB.at > SYNC_AGAIN_MS) syncAndRefresh().catch(() => {});
 });
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
-  navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.deeplink) followLink(e.data.deeplink); });
-}
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
 boot();

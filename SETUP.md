@@ -113,23 +113,6 @@ The job also writes the date into `.github/keepalive.txt`. That keeps the repo a
 2. Open it from the home-screen icon → **Sign in with Google** → choose **nkotwar@gmail.com**. You land straight in, as admin.
 3. **Admin → People**: everyone is listed, with who has signed up. Tap anyone for **Call** or **Invite on WhatsApp**.
 
-## 8. Admin notifications (optional)
-
-Get a notification on your phone when staff log a visit, raise a request, and so on. Only admins can turn these on. You were sent a private file, **TASC-Connect-push-secrets-PRIVATE.txt**, with the three secret values; keep it out of GitHub.
-
-1. **SQL Editor → New query**: paste `sql/07_update_v16.sql` → **Run**.
-2. **Edge Functions → Deploy a new function → Via Editor**. Name it `push-activity`. Replace the sample code with everything in `supabase/functions/push-activity/index.ts` → **Deploy function**.
-3. Open the function → **Details** (or Settings) → turn **off** "Verify JWT with legacy secret" (or "Enforce JWT verification") → **Save**. The function checks its own secret instead.
-4. **Edge Functions → Secrets → Add new secret**, three times, copying from the private file: `VAPID_PRIVATE_KEY`, `HOOK_SECRET`, `PUSH_CONTACT`.
-5. **Database → Webhooks** (enable webhooks if asked) → **Create a new hook**:
-   - Name `push_activity` · Table `activity_log` · Events: **Insert** only
-   - Type: **Supabase Edge Functions** → `push-activity` · Method POST · Timeout 5000
-   - HTTP Headers → **Add a new header**: `x-hook-secret` = your HOOK_SECRET value
-   - **Create webhook**
-6. On your phone (installed app): **Profile → Notifications** → pick the kinds → **Turn on** → Allow. On iPhone, add TASC Connect to the Home Screen first and open it from there.
-
-Each phone is set separately. If nothing arrives: Edge Functions → push-activity → **Logs** shows each send; a 403 there means the x-hook-secret header doesn't match the secret.
-
 ## How staff get in
 
 Share the link. On first sign-in with Google:
@@ -166,13 +149,14 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 13 | Faster, smoother: tabs stay built and refresh quietly, filters don't reload, panels swap content in place | None |
 | 14 | Place page always shows who it is allotted to for admin (even before the database update), with a reminder if staff can't see it yet | Run `sql/05_update_v12.sql` if not done |
 | 15 | The phone keeps its own copy and syncs only what changed (on open, on return after 2+ min, on pull); your changes go straight into the copy. Hazri-style pull loader; About field guide | Run `sql/06_update_v15.sql` once (after 04 and 05) |
-| 16 | New name **TASC Connect** and logo (also on the summary image, Excel and photo stamps). Admin notifications of activity; new visits now show in Activity | Run `sql/07_update_v16.sql`, then section 8 if you want notifications |
+| 16 | New name **TASC Connect** and logo (also on the summary image, Excel and photo stamps). New visits now show in Activity | Run `sql/07_update_v16.sql` |
 | 17 | Pull-down emblem spins without the extra ring; clearer message when a request reason is too short | None |
 | 18 | "Log visit" is now "Submit Visit Report" (button, form title, hints) | None |
 | 19 | Fix: deleting failed with *record "old" has no field "visit_id"*. Photos are now removed only after the visit is deleted | Run `sql/08_fix_v18.sql` once |
 | 20 | To do and My visits merged into one **My visits** list with pills: All, Overdue, Today, Upcoming, Visited, Visit Verified (and On hold when any). Big count cards removed | None |
 | 21 | Admin: **Upload udairo.js** moved to People (preview opens in a panel); photo storage moved to Profile; Staff list section removed | None |
 | 22 | Admin → People: **Due** pill lists staff with allotted visits still pending, with pending and overdue counts | None |
+| 23 | Admin notifications removed | Run `sql/09_remove_notifications.sql` once |
 
 ---
 
