@@ -169,6 +169,8 @@ function confirmSheet(title, text, okLabel, danger = false) {
 }
 
 const initials = n => String(n || '').replace(/^(MR|MS|MRS|MISS)\.?\s+/i, '').split(/\s+/).filter(w => /\w/.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+/* A sign-in as people should read it: a Gmail, or "Phone (name + date of birth)" */
+const loginLabel = g => String(g || '').startsWith('device:') ? 'Phone · signed in with name + date of birth' : String(g || '');
 const cleanName = n => String(n || '').replace(/\s+\.$/, '').trim();
 const fmtDate = d => d ? new Date(d.length === 10 ? d + 'T00:00:00' : d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtDateTime = d => d ? new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—';

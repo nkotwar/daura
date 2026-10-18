@@ -1,5 +1,5 @@
-/* TASC Connect · sign-in with Google, then "who are you" (match by email, or name + date of birth).
-   Google proves the Gmail. The database decides which employee that Gmail belongs to. */
+/* TASC Connect · sign-in: pick your name + date of birth (this phone gets its own sign-in), or Google.
+   The database decides which employee a phone or Gmail belongs to. Admin and Viewer need Google. */
 
 let googleNonce = null;
 
@@ -26,11 +26,26 @@ function screenSignIn(note) {
       <p>Your assigned visits, visit reports with photos, and follow-ups, in one place.</p>
     </div>
     ${note ? `<div class="note ${note.kind || ''}" style="margin-top:12px">${note.html}</div>` : ''}
-    ${configured ? `<div class="gbtn" id="gbtn"><div class="spin" style="margin:6px auto"></div></div>
-      <p class="hint" style="text-align:center">Use your own Gmail. The first time, you confirm who you are.</p>`
+    ${configured ? `<button class="btn block" id="byname" style="margin-top:18px">${ICON.user} Sign in with your name</button>
+      <p class="hint" style="text-align:center">Pick your name and enter your date of birth. This phone stays signed in.</p>
+      <div class="orline"><span>or</span></div>
+      <div class="gbtn" id="gbtn"><div class="spin" style="margin:6px auto"></div></div>
+      <p class="hint" style="text-align:center">Google sign-in works on any phone. Admins and viewers use Google.</p>`
       : `<div class="note warn" style="margin-top:20px"><b>Almost there.</b> Fill in <span class="mono">config.js</span> with your Supabase and Google details (SETUP.md, step 4).</div>`}
     <div class="foot"><img src="cbi-emblem.png" alt="">Built by Nitin Kotwar (139535), via PDUDAIRO</div>`;
-  if (configured) mountGoogleButton();
+  if (configured) {
+    mountGoogleButton();
+    $('#byname').onclick = async () => {
+      const b = $('#byname'); b.disabled = true; b.textContent = 'Opening…';
+      try {
+        const { error } = await sb.auth.signInAnonymously();
+        if (error) throw error;
+        await route({ fresh: true });
+      } catch (e) {
+        screenSignIn({ kind: 'bad', html: /anonymous/i.test(e.message || '') ? 'Name sign-in is not switched on yet. Please use Google for now.' : esc(errText(e)) });
+      }
+    };
+  }
 }
 
 async function mountGoogleButton() {
@@ -69,7 +84,8 @@ async function onGoogleCredential(resp) {
 async function route(opts = {}) {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { screenSignIn(); return; }
-  const email = ((session.user && session.user.email) || '').toLowerCase();
+  const u = session.user || {};
+  const email = (u.email || (u.is_anonymous ? 'device:' + u.id : '')).toLowerCase();
   if (DB.user !== email) await loadSnap(email);
   // 1. This phone already has a copy: open straight away from it, then sync quietly.
   if (!opts.fresh && DB.who && DB.who.state === 'linked') {
@@ -112,7 +128,7 @@ function screenOffline(e) {
 function screenStop(title, text) {
   header(); renderTabs(false);
   $('#main').innerHTML = `<div class="card"><h3>${esc(title)}</h3><p class="muted">${esc(text)}</p>
-    <p class="hint">Signed in as ${esc(S.who.gmail)}</p></div>
+    <p class="hint">Signed in ${S.who.device ? 'with your name on this phone' : 'as ' + esc(S.who.gmail)}</p></div>
     <button class="btn ghost block" id="so">${ICON.logout} Sign out</button>`;
   $('#so').onclick = () => signOut('local');
 }
@@ -124,6 +140,7 @@ function profileCard(p, gmail) {
         <dt>Emp ID</dt><dd class="mono">${esc(p.emp_id)}</dd>
         <dt>Branch</dt><dd>${esc(p.branch || '—')}</dd>
         <dt>Date of birth</dt><dd class="mono">${esc(p.dob || '—')}</dd>
+        ${p.phone_last4 ? `<dt>Mobile</dt><dd class="mono">••••••${esc(p.phone_last4)}</dd>` : ''}
         ${gmail ? `<dt>Gmail</dt><dd>${esc(gmail)}</dd>` : ''}
       </dl></div>`;
 }
@@ -154,7 +171,7 @@ async function screenPickName(who) {
   try { list = await rpc('claim_list'); } catch (e) { screenOffline(e); return; }
   let picked = null;
   $('#main').innerHTML = `<h2>Find your name</h2>
-    <p class="muted" style="margin-top:0">First time with <b>${esc(who.gmail)}</b>. Pick your name and confirm your date of birth.</p>
+    <p class="muted" style="margin-top:0">${who.device ? 'Pick your name, then enter your date of birth.' : `First time with <b>${esc(who.gmail)}</b>. Pick your name and confirm your date of birth.`}</p>
     ${who.admin ? `<div class="note" style="margin-bottom:12px">This Gmail is an admin. <button class="linkbtn" id="adm-skip">Continue without a staff profile</button></div>` : ''}
     <div class="search">${ICON.search}<input class="input" id="pq" type="search" placeholder="Type your name or branch" autocomplete="off"></div>
     <div class="spacer"></div>
@@ -170,7 +187,7 @@ async function screenPickName(who) {
       <button class="linkbtn" id="repick">Pick a different name</button>
     </div>
     <div class="spacer"></div>
-    <button class="btn ghost block" id="so">${ICON.logout} Use a different Gmail</button>`;
+    <button class="btn ghost block" id="so">${who.device ? 'Back' : ICON.logout + ' Use a different Gmail'}</button>`;
 
   const draw = () => {
     const t = $('#pq').value.trim().toLowerCase();
@@ -210,8 +227,8 @@ async function screenPickName(who) {
 
 function screenConfirmClaim(who, p, dob) {
   $('#main').innerHTML = `<h2>Confirm your profile</h2>
-    <p class="muted" style="margin-top:0">Once confirmed, <b>${esc(who.gmail)}</b> opens this profile on any phone.</p>
-    ${profileCard(p, who.gmail)}
+    <p class="muted" style="margin-top:0">${who.device ? 'Once confirmed, this phone opens this profile.' : `Once confirmed, <b>${esc(who.gmail)}</b> opens this profile on any phone.`}</p>
+    ${profileCard(p, who.device ? null : who.gmail)}
     <button class="btn block" id="ok">Confirm, this is me</button>
     <div class="spacer"></div>
     <button class="btn ghost block" id="back">Back</button>`;
@@ -225,6 +242,7 @@ function screenConfirmClaim(who, p, dob) {
 
 /* Sign out of this phone, or of every device signed in with this Gmail. */
 async function signOut(scope = 'local', quiet = false) {
+  if (S.who && S.who.device && S.who.gmail) { try { await rpc('unlink_my_login', { p_gmail: S.who.gmail }, 8000); } catch (e) { /* offline: the admin can remove it */ } }
   try { await sb.auth.signOut({ scope }); } catch (e) { if (scope === 'global') { toast(errText(e)); return; } }
   try { localStorage.removeItem('daura-auth'); } catch (e) { /* storage may be blocked */ }
   try { google.accounts.id.disableAutoSelect(); } catch (e) { /* not loaded */ }

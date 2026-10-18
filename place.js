@@ -113,9 +113,12 @@ async function openNewPlace(prefill = '') {
     <label class="f" for="np-t">Type</label><select class="input" id="np-t">${setting('entity_types').map(t => `<option>${esc(t)}</option>`).join('')}</select>
     <label class="f" for="np-a">Town / area</label><input class="input" id="np-a" value="${esc(S.who.me.branch || '')}">
     <label class="f" for="np-ad">Address</label><textarea class="input" id="np-ad" rows="2"></textarea>
+    <label class="f" for="np-cp">Contact person</label><input class="input" id="np-cp" placeholder="Name and designation">
     <label class="f" for="np-c">Contact details</label><input class="input" id="np-c" placeholder="Phone, email, website">
+    ${S.who.admin ? `<h4 class="dh" style="margin-top:20px">Allotment</h4>${allotFieldsHTML(null, true)}` : ''}
     <p class="hint" id="np-err" style="color:var(--bad)"></p>
     <button class="btn block" id="np-save">Add place</button>`);
+  const allotVal = S.who.admin ? bindAllotFields(body, null) : null;
   const dup = () => {
     const t = $('#np-n', body).value.trim().toLowerCase();
     const words = t.split(/\s+/).filter(w => w.length > 2);
@@ -130,10 +133,17 @@ async function openNewPlace(prefill = '') {
     if (name.length < 3) { $('#np-err', body).textContent = 'Please enter the place\'s name.'; return; }
     $('#np-save', body).disabled = true;
     try {
+      const av = allotVal ? allotVal() : null;
+      if (av && av.to && !av.date) { $('#np-save', body).disabled = false; $('#np-err', body).textContent = 'Pick a visit date.'; return; }
       const [e] = await q(sb.from('entities').insert({ name, type: $('#np-t', body).value, area: $('#np-a', body).value.trim() || null,
-        address: $('#np-ad', body).value.trim() || null, contact: $('#np-c', body).value.trim() || null }).select('id, name, type, area, address, contact, closure, lat, lng, created_by'));
+        address: $('#np-ad', body).value.trim() || null, contact: $('#np-c', body).value.trim() || null, contact_person: $('#np-cp', body).value.trim() || null })
+        .select('id, name, type, area, address, contact, contact_person, closure, lat, lng, created_by'));
       put('entities', e);
-      toast('Place added');
+      if (av && av.to) {
+        try { put('assignments', await rpc('admin_allot', { p_entity: e.id, p_to: av.to, p_date: av.date, p_campaign: av.camp, p_note: av.note }));
+          toast(`Place added and allotted to ${personName(av.to)}`); }
+        catch (err) { toast('Place added, but not allotted: ' + errText(err), 4000); }
+      } else toast('Place added');
       openPlace(e);
     } catch (err) { $('#np-save', body).disabled = false; $('#np-err', body).textContent = errText(err); }
   };
@@ -163,7 +173,8 @@ async function openPlace(e, assignment) {
     <div class="row wrap" style="margin-bottom:10px"><span class="badge acc">${esc(e.type)}</span>${e.area ? `<span class="badge">${esc(e.area)}</span>` : ''}
       ${assignment ? `<span class="badge ${assignment.scheduled_on < todayISO() && !asgVisited ? 'bad' : ''}">Scheduled ${fmtDate(assignment.scheduled_on)}</span>` : ''}
       ${e.lat != null ? '<span class="badge ok">On map</span>' : ''}</div>
-    <dl class="kv"><dt>Address</dt><dd>${esc(e.address || '—')}</dd><dt>Contact</dt><dd>${esc(e.contact || '—')}</dd></dl>
+    ${allotNote(e.id)}
+    <dl class="kv"><dt>Address</dt><dd>${esc(e.address || '—')}</dd>${e.contact_person ? `<dt>Contact person</dt><dd>${esc(e.contact_person)}</dd>` : ''}<dt>Contact</dt><dd>${esc(e.contact || '—')}</dd></dl>
     <div class="row" style="margin-top:12px">
       ${e.lat != null ? `<a class="btn ghost grow" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}">${ICON.pin} Map</a>`
         : e.address ? `<a class="btn ghost grow" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.name + ', ' + e.address)}">${ICON.pin} Find on Maps</a>` : ''}
@@ -298,11 +309,24 @@ async function deleteVisitWithPhotos(id, photos) {
 
 function refreshCurrent() { closeSheet(); if (VIEWS[S.tab]) VIEWS[S.tab](); }
 
+/* The admin's note on an allotment: shown to the person it is allotted to, and to admins */
+function allotNote(entityId) {
+  const me = S.who.me && S.who.me.emp_id;
+  const rows = openAsg().filter(a => a.entity_id === entityId && a.note && (S.who.admin || a.assignee === me));
+  return rows.map(a => `<div class="note" style="margin-bottom:10px"><b>Note from the Regional Office${S.who.admin && a.assignee !== me ? ' for ' + esc(personName(a.assignee)) : ''}:</b> ${esc(a.note)}</div>`).join('');
+}
+
 /* "Allotted to" on a place's page. Viewers and admin can tap a name to see that person's summary. */
 async function loadAssignees(el, entityId) {
   if (!el) return;
   const rows = qAssignees(entityId), dbNote = '';
-  if (!rows.length) { el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>' + dbNote; return; }
+  const ent = get('entities', entityId);
+  if (!rows.length) {
+    el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>'
+      + (S.who.admin && ent && !ent.closure ? '<button class="btn soft block" id="pl-allot" style="margin-top:8px">Allot this place</button>' : '');
+    const b = $('#pl-allot', el); if (b) b.onclick = () => openAllot(ent);
+    return;
+  }
   const today = todayISO(), canOpen = S.who.admin;
   el.innerHTML = `<h4 class="dh">Allotted to</h4><div class="list">${rows.map(r => {
     const st = r.verified ? '<span class="badge ok">Verified</span>' : r.visited ? '<span class="badge acc">Visited</span>'
@@ -314,6 +338,8 @@ async function loadAssignees(el, entityId) {
       <div class="avatar">${esc(initials(r.name))}</div>
       <div class="grow"><div class="t">${esc(cleanName(r.name))}${me ? ' (you)' : ''}</div><div class="s">${esc(r.designation || '')}${r.branch ? ' · ' + esc(r.branch) : ''}${
         r.visited_by_emp && r.visited_by_emp !== r.emp_id ? `<br><b>Visited by ${S.who.me && r.visited_by_emp === S.who.me.emp_id ? 'you' : esc(cleanName(r.visited_by))}</b> · ${fmtDate(r.visited_at)}` : ''}</div></div>
-      ${st}${canOpen ? `<span class="chev">${ICON.chev}</span>` : ''}</${canOpen ? 'button' : 'div'}>`; }).join('')}</div>${dbNote}`;
+      ${st}${canOpen ? `<span class="chev">${ICON.chev}</span>` : ''}</${canOpen ? 'button' : 'div'}>`; }).join('')}</div>${dbNote}
+    ${S.who.admin ? rows.filter(r => !r.visited).map(r => `<button class="btn soft block" data-realot="${r.assignment_id}" style="margin-top:8px">Reallot or change date${rows.length > 1 ? ' · ' + esc(cleanName(r.name)) : ''}</button>`).join('') : ''}`;
   $$('[data-st]', el).forEach(b => b.onclick = () => openStaff(+b.dataset.st));
+  $$('[data-realot]', el).forEach(b => b.onclick = () => openAllot(ent, b.dataset.realot));
 }

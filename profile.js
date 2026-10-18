@@ -8,8 +8,9 @@ async function viewProfile() {
         <span class="badge acc">${roleLabel(me.role)}</span>${me.is_branch_head ? '<span class="badge ok">Branch head: verifies branch visits</span>' : ''}
         ${S.who.admin && me.role !== 'admin' ? '<span class="badge acc">Admin</span>' : ''}</div>`
       : `<div class="card"><h3>Admin</h3><p class="muted">Signed in as ${esc(S.who.gmail)} without a staff profile.</p></div>`}
-    ${me ? `<h2>Gmails that open your profile</h2><div id="logins"><div class="spin" style="margin:16px auto"></div></div>
-    <p class="hint">If you see a Gmail here that isn't yours, remove it and tell the Regional Office.</p>` : ''}
+    ${S.who.needs_google ? `<div class="note warn" style="margin-bottom:12px">You signed in with your name, so you have staff access here. For ${me && me.role === 'viewer' ? 'the Dashboard' : 'Admin and the Dashboard'}, sign out and sign in with Google.</div>` : ''}
+    ${me ? `<h2>Phones and Gmails that open your profile</h2><div id="logins"><div class="spin" style="margin:16px auto"></div></div>
+    <p class="hint">If you see one here that isn't yours, remove it and tell the Regional Office.</p>` : ''}
     ${S.who.admin ? `<h2>Photo storage</h2><div id="storebox"><div class="spin" style="margin:16px auto"></div></div>` : ''}
     <h2>TASC Connect</h2>
     <div class="list">
@@ -20,11 +21,11 @@ async function viewProfile() {
     <h2>Sign out</h2>
     <div class="stack">
       <button class="btn ghost block" id="so">${ICON.logout} Sign out on this phone</button>
-      <button class="btn ghost block" id="soall">Sign out on all devices</button>
+      ${S.who.device ? '' : '<button class="btn ghost block" id="soall">Sign out on all devices</button>'}
     </div>
     <div class="foot"><img src="cbi-emblem.png" alt="">TASC Connect · version ${APP_VERSION}<br>Built by Nitin Kotwar (139535), via PDUDAIRO</div>`;
   $('#so').onclick = async () => { if (await confirmSheet('Sign out?', 'You can sign in again any time with Google.', 'Sign out')) signOut('local'); };
-  $('#soall').onclick = async () => {
+  if ($('#soall')) $('#soall').onclick = async () => {
     if (await confirmSheet('Sign out everywhere?', `Every phone or computer signed in as <b>${esc(S.who.gmail)}</b> is signed out, including this one.`, 'Sign out everywhere')) signOut('global');
   };
   bindUpdate();
@@ -38,14 +39,14 @@ async function loadLogins() {
   const el = $('#logins'); if (!el) return;
   const paint = rows => {
     el.innerHTML = `<div class="list">${rows.map(r => `<div class="item" style="cursor:default">
-        <div class="grow"><div class="t" style="overflow-wrap:anywhere">${esc(r.gmail)}</div>
+        <div class="grow"><div class="t" style="overflow-wrap:anywhere">${esc(loginLabel(r.gmail))}</div>
           <div class="s">${r.is_current ? 'This phone · ' : ''}linked ${fmtDate(r.linked_at)} · last used ${ago(r.last_seen)}</div></div>
         <button class="btn small danger" data-rm="${esc(r.gmail)}" data-cur="${r.is_current ? 1 : ''}">Remove</button></div>`).join('')}</div>`;
     $$('[data-rm]', el).forEach(b => b.onclick = async () => {
       const cur = !!b.dataset.cur;
       const ok = await confirmSheet('Remove this Gmail?', cur
-        ? `<b>${esc(b.dataset.rm)}</b> is the Gmail you are using now. You will be signed out and will need to confirm your profile again to come back.`
-        : `<b>${esc(b.dataset.rm)}</b> will no longer open your profile.`, 'Remove', true);
+        ? `<b>${esc(loginLabel(b.dataset.rm))}</b> is the sign-in you are using now. You will be signed out and will need to confirm your profile again to come back.`
+        : `<b>${esc(loginLabel(b.dataset.rm))}</b> will no longer open your profile.`, 'Remove', true);
       if (!ok) return;
       try { await rpc('unlink_my_login', { p_gmail: b.dataset.rm }); S.cache.logins = null; toast('Removed'); if (cur) signOut('local'); else loadLogins(); }
       catch (e) { toast(errText(e)); }

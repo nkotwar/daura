@@ -115,15 +115,18 @@ The job also writes the date into `.github/keepalive.txt`. That keeps the repo a
 
 ## How staff get in
 
-Share the link. On first sign-in with Google:
+Share the link. Staff have two ways in:
 
-- **Their Gmail is in udairo.js**: they see their name, Emp ID, branch and date of birth, tap **Yes, this is me**, and they're in. About 121 of 160 staff can match this way.
-- **Any other Gmail**: they pick their name, enter their date of birth, see their Emp ID, and confirm.
+- **Sign in with your name** (the main button): they pick their name, enter their date of birth, see their Emp ID, branch and the last 4 digits of their mobile, and confirm. That phone stays signed in until they sign out or clear the browser. This gives **field staff** access only: admins and viewers who sign in this way get the staff view.
+- **Sign in with Google**: works as before. If their Gmail is in udairo.js, they just confirm; otherwise name + date of birth once. Admin and Viewer need Google.
 
-A person can link more than one Gmail. Every new link shows in **Admin → Activity**. You can unlink any Gmail, change roles (Field staff / Viewer / Admin), or **Block** someone, which cuts their access on every device at once. Staff can see and remove the Gmails linked to their own profile, and sign out on this phone or on all devices.
+Every new phone or Gmail shows in **Admin → Activity** and in the person's panel, where you can **Remove** it. You can change roles (Field staff / Viewer / Admin), or **Block** someone, which cuts their access on every phone at once. Staff can see and remove the phones and Gmails linked to their own profile.
+
+To switch on name sign-in (once): Supabase → **Authentication → Sign In / Providers** → turn on **Allow anonymous sign-ins** → Save.
 
 ## Updating later
 
+- **Allotting**: Places → **+ Add a new place** has an Allotment part for admins (who, visit by, campaign, note). Any place page has **Allot this place** or **Reallot or change date**.
 - **New udairo.js**: Admin → People → **Upload udairo.js**. You see who is new, who moved and who left before you apply. Nobody's history is lost.
 - **New app version**: upload the changed files and raise the number in `version.js`. Phones then show **Update now** in Profile.
 
@@ -161,6 +164,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 25 | Every place in Places shows its status (Overdue, Due today/date, Visited, Verified, On hold, closed, Not allotted) and who it is allotted to / last visit | None |
 | 26 | Fix: Profile stuck loading (Gmails, photo storage). Server calls give up after 20 s with a Try again instead of spinning forever | None |
 | 27 | Visit report form: Headcount (and its Staff/Members dropdown) removed | None |
+| 28 | **Sign in with your name** (name + date of birth, Google optional; admin and viewer need Google). Admin can allot a new place while adding it, and **Allot / Reallot or change date** on any place, with a note for staff | Turn on **Allow anonymous sign-ins**, then run `sql/10_update_v28.sql` |
 
 ---
 

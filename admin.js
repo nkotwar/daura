@@ -181,14 +181,14 @@ function openPerson(emp) {
     </dl>
     ${phone.length === 10 ? `<div class="row" style="margin-top:14px">
       <a class="btn soft grow" href="tel:+91${phone}">${ICON.phone} Call</a>
-      <a class="btn soft grow" target="_blank" rel="noopener" href="https://wa.me/91${phone}?text=${encodeURIComponent(`Dear ${cleanName(p.name)}, please sign in to TASC Connect with your Gmail: ${location.origin + location.pathname}`)}">${ICON.wa} Invite on WhatsApp</a></div>` : ''}
+      <a class="btn soft grow" target="_blank" rel="noopener" href="https://wa.me/91${phone}?text=${encodeURIComponent(`Dear ${cleanName(p.name)}, please sign in to TASC Connect (tap "Sign in with your name"): ${location.origin + location.pathname}`)}">${ICON.wa} Invite on WhatsApp</a></div>` : ''}
 
     <h2>Visits</h2><div id="sw"></div>
-    <h2>Gmails</h2>
+    <h2>Phones and Gmails</h2>
     ${p.logins.length ? `<div class="list">${p.logins.map(l => `<div class="item" style="cursor:default">
-        <div class="grow"><div class="t" style="overflow-wrap:anywhere">${esc(l.gmail)}</div>
-          <div class="s">via ${{ email: 'staff-list email', dob: 'name + date of birth', admin: 'admin' }[l.via] || l.via} · ${fmtDate(l.linked_at)} · used ${ago(l.last_seen)}</div></div>
-        <button class="btn small danger" data-unlink="${esc(l.gmail)}">Unlink</button></div>`).join('')}</div>`
+        <div class="grow"><div class="t" style="overflow-wrap:anywhere">${esc(loginLabel(l.gmail))}</div>
+          <div class="s">via ${{ email: 'staff-list email', dob: 'Gmail + date of birth', admin: 'admin', device: 'name + date of birth' }[l.via] || l.via} · ${fmtDate(l.linked_at)} · used ${ago(l.last_seen)}</div></div>
+        <button class="btn small danger" data-unlink="${esc(l.gmail)}">Remove</button></div>`).join('')}</div>`
       : '<p class="hint">Hasn\'t signed in yet.</p>'}
     <div class="row" style="margin-top:10px"><input class="input grow" id="lg" type="email" placeholder="Add a Gmail for them" autocomplete="off">
       <button class="btn small" id="lgb" style="min-height:44px">Link</button></div>
@@ -207,8 +207,8 @@ function openPerson(emp) {
   loadStaffWork($('#sw', body), emp);
   const refresh = async (msg) => { toast(msg); S.cache.people = await rpc('admin_people'); closeSheet(); admPeople(false); openPerson(emp); };
   $$('[data-unlink]', body).forEach(b => b.onclick = async () => {
-    if (!await confirmSheet('Unlink this Gmail?', `<b>${esc(b.dataset.unlink)}</b> will no longer open ${esc(cleanName(p.name))}'s profile.`, 'Unlink', true)) return openPerson(emp);
-    try { await rpc('admin_unlink', { p_gmail: b.dataset.unlink }); await refresh('Unlinked'); } catch (e) { toast(errText(e)); }
+    if (!await confirmSheet('Remove this sign-in?', `<b>${esc(loginLabel(b.dataset.unlink))}</b> will no longer open ${esc(cleanName(p.name))}'s profile.`, 'Remove', true)) return openPerson(emp);
+    try { await rpc('admin_unlink', { p_gmail: b.dataset.unlink }); await refresh('Removed'); } catch (e) { toast(errText(e)); }
   });
   $('#lgb', body).onclick = async () => {
     const g = $('#lg', body).value.trim().toLowerCase();
@@ -265,9 +265,11 @@ async function staffUpload(file) {
 
 /* ───────── Activity ───────── */
 const ACT = {
-  login_linked: (a) => `linked ${esc(a.detail?.gmail || 'a Gmail')} to ${esc(cleanName(a.target_name || a.target))}${a.detail?.via === 'dob' ? ' (name + date of birth)' : a.detail?.via === 'email' ? ' (staff-list email)' : ' (admin)'}`,
-  login_unlinked: (a) => `unlinked ${esc(a.detail?.gmail || 'a Gmail')} from ${esc(cleanName(a.target_name || a.target))}`,
-  claim_failed: (a) => `tried to claim ${esc(cleanName(a.target_name || a.target))}'s profile with a wrong date of birth (${esc(a.detail?.gmail || '')})`,
+  login_linked: (a) => a.detail?.via === 'device' ? `linked a phone to ${esc(cleanName(a.target_name || a.target))} (name + date of birth)`
+    : `linked ${esc(a.detail?.gmail || 'a Gmail')} to ${esc(cleanName(a.target_name || a.target))}${a.detail?.via === 'dob' ? ' (name + date of birth)' : a.detail?.via === 'email' ? ' (staff-list email)' : ' (admin)'}`,
+  login_unlinked: (a) => `removed ${String(a.detail?.gmail || '').startsWith('device:') ? 'a phone sign-in' : esc(a.detail?.gmail || 'a Gmail')} from ${esc(cleanName(a.target_name || a.target))}`,
+  claim_failed: (a) => `tried to open ${esc(cleanName(a.target_name || a.target))}'s profile with a wrong date of birth (${String(a.detail?.gmail || '').startsWith('device:') ? 'from a phone' : esc(a.detail?.gmail || '')})`,
+  allotted: (a) => `allotted ${esc(a.detail?.entity || 'a place')} to ${esc(cleanName(a.target_name || a.target))}${a.detail?.on ? ', visit by ' + fmtDate(a.detail.on) : ''}`,
   directory_imported: (a) => `uploaded the staff list: ${a.detail?.staff} staff, ${a.detail?.new} new, ${a.detail?.inactivated} marked inactive`,
   role_set: (a) => `made ${esc(cleanName(a.target_name || a.target))} ${roleLabel(a.detail?.role).toLowerCase()}`,
   person_blocked: (a) => `blocked ${esc(cleanName(a.target_name || a.target))}`,
@@ -277,7 +279,7 @@ const ACT = {
   visit_unverified: () => 'unverified a visit',
   request_raised: (a) => `raised a ${String(a.detail?.kind || '').replace('_', ' ')} request`,
   request_decided: (a) => `${a.detail?.approved ? 'approved' : 'declined'} a request`,
-  assignment_reassigned: () => 'reassigned a visit',
+  assignment_reassigned: (a) => a.detail?.entity ? `reallotted ${esc(a.detail.entity)} to ${esc(cleanName(a.target_name || personName(+a.detail.to)))}` : 'reassigned a visit',
   place_reopened: () => 'reopened a closed place'
 };
 async function admActivity() {

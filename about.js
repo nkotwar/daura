@@ -23,8 +23,8 @@ function aboutHTML() {
       <li><b>Follow up</b><span>Once verified, add Visit 2, 3… or close it: account opened, rejected or not feasible.</span></li>
     </ol>`)}
 
-  ${ch('III', 'Who sees what', 'Your Gmail, your profile, your visits', `
-    <div class="ab-chain"><span>Gmail<br><small>signed in with Google</small></span><i>→</i><span>Your profile<br><small>Emp ID, confirmed once</small></span><i>→</i><span>What you see<br><small>by your role</small></span></div>
+  ${ch('III', 'Who sees what', 'Your sign-in, your profile, your visits', `
+    <div class="ab-chain"><span>Your name + DOB<br><small>or Google</small></span><i>→</i><span>Your profile<br><small>Emp ID, confirmed once</small></span><i>→</i><span>What you see<br><small>by your role</small></span></div>
     <p>Staff see their own visits in full, and a short summary of everyone's visits to a place: who went, when, and what came of it. Branch heads also see their branch's visits, to verify them. The Regional Office sees everything. Phone numbers and photos stay with the people who need them.</p>`)}
 
   ${ch('IV', 'Reading the lists', 'Five colours', `
