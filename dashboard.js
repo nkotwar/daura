@@ -70,7 +70,7 @@ function dashModel(D, f) {
 
   // by branch (assignee's branch for allotments)
   const byBranch = new Map();
-  const bb = code => { if (!byBranch.has(code)) byBranch.set(code, { code, name: bname.get(code) || '—', total: 0, visited: 0, verified: 0, overdue: 0, today: 0, tmr: 0 }); return byBranch.get(code); };
+  const bb = code => { if (!byBranch.has(code)) byBranch.set(code, { code, ro: ro.has(code), name: bname.get(code) || '—', total: 0, visited: 0, verified: 0, overdue: 0, today: 0, tmr: 0 }); return byBranch.get(code); };
   // every branch with staff appears, even with nothing allotted (unless one branch is filtered)
   new Set([...S.dir.values()].map(p => p.branch_code)).forEach(code => { if (code != null && (!f.branch || code === f.branch)) bb(code); });
   rows.forEach(r => { const b = bb(staff(r.a.assignee).branch_code); b.total++; if (r.v) b.visited++; if (r.st === 'verified') b.verified++; if (r.st === 'overdue') b.overdue++;
@@ -78,8 +78,9 @@ function dashModel(D, f) {
     if (r.st === 'notdue' && r.a.scheduled_on > today && r.a.scheduled_on <= tmr) b.tmr++; });   // weekend-dated visits count towards the next working day
   // by officer
   const byOff = new Map();
-  const oo = e => { if (!byOff.has(e)) byOff.set(e, { emp: e, name: cleanName(staff(e).name || 'Emp ' + e), branch: staff(e).branch || '', phone: staff(e).phone, total: 0, visited: 0, overdue: 0, own: 0, delaySum: 0, delayN: 0, pending: [] }); return byOff.get(e); };
-  rows.forEach(r => { const o = oo(r.a.assignee); o.total++; if (r.v) o.visited++; if (r.st === 'overdue') { o.overdue++; o.pending.push(r); } if (r.delay != null) { o.delaySum += Math.max(0, r.delay); o.delayN++; } });
+  const oo = e => { if (!byOff.has(e)) byOff.set(e, { emp: e, name: cleanName(staff(e).name || 'Emp ' + e), branch: staff(e).branch || '', phone: staff(e).phone, total: 0, visited: 0, overdue: 0, today: 0, own: 0, delaySum: 0, delayN: 0, pending: [], dueToday: [] }); return byOff.get(e); };
+  rows.forEach(r => { const o = oo(r.a.assignee); o.total++; if (r.v) o.visited++; if (r.st === 'overdue') { o.overdue++; o.pending.push(r); }
+    if (r.st === 'notdue' && r.a.scheduled_on === today) { o.today++; o.dueToday.push(r); } if (r.delay != null) { o.delaySum += Math.max(0, r.delay); o.delayN++; } });
   vis.filter(v => !v.assignment_id).forEach(v => oo(v.visitor).own++);
   // by type
   const byType = countBy(rows, r => r.a.entity.type).map(([t]) => { const rr = rows.filter(r => r.a.entity.type === t); return { t, total: rr.length, visited: rr.filter(r => r.v).length, overdue: rr.filter(r => r.st === 'overdue').length }; });
@@ -87,8 +88,8 @@ function dashModel(D, f) {
   const waitingV = vis.filter(v => v.status === 'submitted');
   const waitOldest = waitingV.reduce((m, v) => !m || v.logged_at < m ? v.logged_at : m, null);
   return { today, tmr, rows, vis, n, visited, ageing, delays, onTime, avgDelay, followDue, biz, outcomes, products, banking, otherBanks,
-    byBranch: [...byBranch.values()].sort((a, b) => b.overdue - a.overdue || b.today - a.today || b.tmr - a.tmr || b.total - a.total || a.name.localeCompare(b.name)),
-    byOff: [...byOff.values()].sort((a, b) => b.overdue - a.overdue || a.name.localeCompare(b.name)),
+    byBranch: [...byBranch.values()].sort((a, b) => (b.ro - a.ro) || a.name.localeCompare(b.name)),   // Udaipur RO first, then A–Z
+    byOff: [...byOff.values()].sort((a, b) => b.overdue - a.overdue || b.today - a.today || a.name.localeCompare(b.name)),
     byType, waiting: waitingV.length, waitOldest, bname };
 }
 
@@ -125,8 +126,26 @@ async function viewDashboard(force = false) {
       ${tile(M.biz.opened, 'Accounts opened', 'ok', 'opened')}
     </div>
 
+    <div class="card"><h3>By branch</h3>
+      <div class="tbl"><table><thead><tr><th>Branch</th><th>Allotted</th><th>Visited</th><th>Overdue</th><th>Due today</th><th>Due ${shortDay(M.tmr)}</th><th>Done</th></tr></thead><tbody>
+      ${M.byBranch.map(b => `<tr data-br="${b.code}"><td>${esc(b.name)}</td><td class="mono">${b.total}</td><td class="mono">${b.visited}</td><td class="mono ${b.overdue ? 'bad' : ''}">${b.overdue}</td><td class="mono ${b.today ? 'warn' : ''}">${b.today || '·'}</td><td class="mono">${b.tmr || '·'}</td><td>${minibar(pct(b.visited, b.total))}</td></tr>`).join('') || '<tr><td colspan="7" class="hint">No branches.</td></tr>'}
+      </tbody></table></div>
+      <p class="hint">Tap a branch for its officers and pending visits.</p>
+    </div>
+
     <div class="card"><h3>Progress</h3>
       ${stackBar([['Verified', N.verified, 'ok'], ['Visited, not verified', N.submitted, 'acc'], ['Not due yet', N.notdue, 'mute'], ['On hold (request)', N.hold, 'warn'], ['Overdue', N.overdue, 'bad']], N.total)}
+    </div>
+
+    <div class="card"><h3>By type</h3>
+      <div class="tbl"><table><thead><tr><th>Type</th><th>Allotted</th><th>Visited</th><th>Overdue</th><th>Done</th></tr></thead><tbody>
+      ${M.byType.map(t => `<tr><td>${esc(t.t)}</td><td class="mono">${t.total}</td><td class="mono">${t.visited}</td><td class="mono ${t.overdue ? 'bad' : ''}">${t.overdue}</td><td>${minibar(pct(t.visited, t.total))}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>
+
+    <div class="card"><h3>Officers</h3>
+      <div class="chips" style="margin-top:0" id="offc">${offChips(M)}</div>
+      <div class="list" id="offl">${offRows(M)}</div>
     </div>
 
     <div class="card"><h3>Overdue ageing</h3>
@@ -151,24 +170,6 @@ async function viewDashboard(force = false) {
         ${S.who.admin ? '<button class="btn small soft" id="d-ver">Open Verify</button>' : ''}</div>` : '<p class="hint">Nothing waiting.</p>'}
     </div>
 
-    <div class="card"><h3>By branch</h3>
-      <div class="tbl"><table><thead><tr><th>Branch</th><th>Allotted</th><th>Visited</th><th>Overdue</th><th>Due today</th><th>Due ${shortDay(M.tmr)}</th><th>Done</th></tr></thead><tbody>
-      ${M.byBranch.map(b => `<tr data-br="${b.code}"><td>${esc(b.name)}</td><td class="mono">${b.total}</td><td class="mono">${b.visited}</td><td class="mono ${b.overdue ? 'bad' : ''}">${b.overdue}</td><td class="mono ${b.today ? 'warn' : ''}">${b.today || '·'}</td><td class="mono">${b.tmr || '·'}</td><td>${minibar(pct(b.visited, b.total))}</td></tr>`).join('') || '<tr><td colspan="7" class="hint">No branches.</td></tr>'}
-      </tbody></table></div>
-      <p class="hint">Tap a branch to filter the whole dashboard to it.</p>
-    </div>
-
-    <div class="card"><h3>By type</h3>
-      <div class="tbl"><table><thead><tr><th>Type</th><th>Allotted</th><th>Visited</th><th>Overdue</th><th>Done</th></tr></thead><tbody>
-      ${M.byType.map(t => `<tr><td>${esc(t.t)}</td><td class="mono">${t.total}</td><td class="mono">${t.visited}</td><td class="mono ${t.overdue ? 'bad' : ''}">${t.overdue}</td><td>${minibar(pct(t.visited, t.total))}</td></tr>`).join('')}
-      </tbody></table></div>
-    </div>
-
-    <div class="card"><h3>Officers</h3>
-      <div class="chips" style="margin-top:0"><button class="chip ${S.cache.offF !== 'all' ? 'on' : ''}" data-of="over">With overdue<b>${M.byOff.filter(o => o.overdue).length}</b></button><button class="chip ${S.cache.offF === 'all' ? 'on' : ''}" data-of="all">All<b>${M.byOff.length}</b></button></div>
-      <div class="list" id="offl">${offRows(M)}</div>
-    </div>
-
     ${M.followDue.length ? `<div class="card" id="fu-card" style="scroll-margin-top:70px"><h3>Follow-ups due</h3><div class="list">${M.followDue.slice(0, 30).map(v => `<button class="item" data-v="${v.id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
       <div class="s">${esc(personName(v.visitor))} · ${esc(v.next_step || 'Follow-up')}</div></div><span class="badge ${v.followup_on < M.today ? 'bad' : 'warn'}">${fmtDate(v.followup_on)}</span></button>`).join('')}</div></div>` : ''}
 
@@ -190,9 +191,8 @@ async function viewDashboard(force = false) {
   $('#df-b').onchange = e => setF('branch', +e.target.value || null);
   if ($('#d-ver')) $('#d-ver').onclick = () => { S.cache.adminSeg = 'verify'; show('admin'); setTimeout(() => { const h = $('#adm-host'); if (h && h._pager) h._pager.go('verify'); }, 50); };
   $('#df-r').onclick = async () => { $('#df-r').disabled = true; try { await syncAndRefresh(); } catch (e) { toast(errText(e)); } const b = $('#df-r'); if (b) b.disabled = false; };
-  $$('[data-br]').forEach(r => r.onclick = () => { f.branch = +r.dataset.br; viewDashboard(); window.scrollTo(0, 0); });
-  $$('[data-of]').forEach(b => b.onclick = () => { S.cache.offF = b.dataset.of; viewDashboard(); });
-  $$('#offl [data-off]').forEach(b => b.onclick = () => (S.who.admin ? openStaff(+b.dataset.off) : openOfficer(+b.dataset.off)));
+  $$('[data-br]').forEach(r => r.onclick = () => openBranch(+r.dataset.br));
+  bindOfficers(M);
   $$('[data-v]', main).forEach(b => b.onclick = () => openVisit(b.dataset.v));
   $('#dx-img').onclick = () => summaryImage(M, f, D);
   $('#dx-xls').onclick = () => exportExcel(M, D);
@@ -224,16 +224,54 @@ function hbars(pairs, cls = '') {
 }
 const nudgeBtns = (wa, tel) => `${wa ? `<a class="nb wa" href="${wa}" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp">${ICON.wa}</a>` : ''}${tel ? `<a class="nb" href="${tel}" title="Call" aria-label="Call">${ICON.phone}</a>` : ''}`;
 function overdueMsg(o) {
-  const list = o.pending.slice(0, 5).map(r => `• ${r.a.entity.name} (due ${fmtDate(r.a.scheduled_on)})`).join('\n');
-  return `Dear ${o.name}, ${o.overdue} visit${o.overdue > 1 ? 's' : ''} allotted to you ${o.overdue > 1 ? 'are' : 'is'} pending in TASC Connect:\n${list}${o.overdue > 5 ? `\n…and ${o.overdue - 5} more` : ''}\nKindly complete and update: ${daoraLink()}\n– Regional Office, Udaipur`;
+  const all = [...o.pending, ...(o.dueToday || [])], n = all.length;
+  const list = all.slice(0, 6).map(r => `• ${r.a.entity.name} (${r.st === 'overdue' ? 'due ' + fmtDate(r.a.scheduled_on) : 'due today'})`).join('\n');
+  return `Dear ${o.name}, ${n} visit${n > 1 ? 's' : ''} allotted to you ${n > 1 ? 'are' : 'is'} pending in TASC Connect:\n${list}${n > 6 ? `\n…and ${n - 6} more` : ''}\nKindly visit and submit the visit report: ${daoraLink()}\n– Regional Office, Udaipur`;
 }
-function offRows(M) {
-  const list = S.cache.offF === 'all' ? M.byOff : M.byOff.filter(o => o.overdue);
-  if (!list.length) return '<div class="empty">No officer has an overdue visit. 🎉</div>';
+const offDue = o => o.overdue || o.today;
+function offChips(M) {
+  const f = S.cache.offF === 'all' ? 'all' : 'due';
+  return `<button class="chip ${f === 'due' ? 'on' : ''}" data-of="due">Overdue / due today<b>${M.byOff.filter(offDue).length}</b></button>`
+    + `<button class="chip ${f === 'all' ? 'on' : ''}" data-of="all">All<b>${M.byOff.length}</b></button>`;
+}
+function offRows(M, list) {
+  list = list || (S.cache.offF === 'all' ? M.byOff : M.byOff.filter(offDue));
+  if (!list.length) return '<div class="empty">Nothing overdue or due today. 🎉</div>';
   return list.map(o => `<div class="item"><button class="grow" data-off="${o.emp}" style="all:unset;cursor:pointer;flex:1;min-width:0">
       <div class="t">${esc(o.name)}</div><div class="s">${esc(o.branch)} · ${o.visited}/${o.total} visited${o.own ? ` · +${o.own} own` : ''}${o.delayN ? ` · avg delay ${(o.delaySum / o.delayN).toFixed(1)} d` : ''}</div></button>
-    ${o.overdue ? `<span class="badge bad">${o.overdue} overdue</span>` : `<span class="badge ok">${pct(o.visited, o.total)}%</span>`}
-    ${o.overdue ? nudgeBtns(waLink(o.phone, overdueMsg(o)), telLink(o.phone)) : nudgeBtns(null, telLink(o.phone))}</div>`).join('');
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex:none">
+      ${o.overdue ? `<span class="badge bad">${o.overdue} overdue</span>` : ''}${o.today ? `<span class="badge warn">${o.today} due today</span>` : ''}
+      ${!offDue(o) ? `<span class="badge ok">${pct(o.visited, o.total)}%</span>` : ''}</div>
+    ${offDue(o) ? nudgeBtns(waLink(o.phone, overdueMsg(o)), telLink(o.phone)) : nudgeBtns(null, telLink(o.phone))}</div>`).join('');
+}
+/* Officer pills redraw only the list, not the whole dashboard */
+function bindOfficers(M, root = document) {
+  const wire = () => $$('[data-off]', $('#offl', root) || root).forEach(b => b.onclick = () => (S.who.admin ? openStaff(+b.dataset.off) : openOfficer(+b.dataset.off)));
+  $$('#offc [data-of]', root).forEach(b => b.onclick = () => { S.cache.offF = b.dataset.of; $('#offc', root).innerHTML = offChips(M); $('#offl', root).innerHTML = offRows(M); bindOfficers(M, root); });
+  wire();
+}
+/* A branch at a glance: its numbers, officers and what is pending */
+function openBranch(code) {
+  const M = S.cache.dashM; const b = M.byBranch.find(x => x.code === code); if (!b) return;
+  const offs = M.byOff.filter(o => (S.dir.get(o.emp) || {}).branch_code === code);
+  const pend = M.rows.filter(r => (S.dir.get(r.a.assignee) || {}).branch_code === code && (r.st === 'overdue' || (r.st === 'notdue' && r.a.scheduled_on <= M.tmr)))
+    .sort((x, y) => (x.a.scheduled_on || '').localeCompare(y.a.scheduled_on || ''));
+  const body = openSheet(b.name, `
+    <div class="stats s6" style="margin-bottom:12px">
+      ${tile(b.total, 'Allotted')}${tile(b.visited, `Visited · ${pct(b.visited, b.total)}%`, 'ok')}${tile(b.verified, 'Verified')}
+      ${tile(b.overdue, 'Overdue', b.overdue ? 'bad' : '')}${tile(b.today, 'Due today', b.today ? 'warn' : '')}${tile(b.tmr, `Due ${shortDay(M.tmr)}`)}
+    </div>
+    <h2>Officers</h2><div class="list">${offRows(M, offs) || ''}</div>
+    <h2>Pending till ${shortDay(M.tmr)}</h2>
+    ${pend.length ? `<div class="list">${pend.map(r => `<button class="item" data-pe="${r.a.entity.id}"><div class="grow"><div class="t">${esc(r.a.entity.name)}</div>
+      <div class="s">${esc(personName(r.a.assignee))} · due ${fmtDate(r.a.scheduled_on)}</div></div>
+      <span class="badge ${r.st === 'overdue' ? 'bad' : r.a.scheduled_on === M.today ? 'warn' : ''}">${r.st === 'overdue' ? r.late + ' d late' : r.a.scheduled_on === M.today ? 'Today' : shortDay(r.a.scheduled_on)}</span></button>`).join('')}</div>`
+      : '<p class="hint">Nothing overdue or due soon.</p>'}
+    <div class="spacer"></div>
+    <button class="btn ghost block" id="br-filter">Filter the whole dashboard to ${esc(b.name)}</button>`);
+  $$('[data-off]', body).forEach(x => x.onclick = () => (S.who.admin ? openStaff(+x.dataset.off) : openOfficer(+x.dataset.off)));
+  $$('[data-pe]', body).forEach(x => x.onclick = () => { const r = pend.find(y => y.a.entity.id === x.dataset.pe); openPlace({ ...r.a.entity }, null); });
+  $('#br-filter', body).onclick = () => { closeSheet(); (S.cache.dashF || {}).branch = code; viewDashboard(); window.scrollTo(0, 0); };
 }
 
 function openOfficer(emp) {

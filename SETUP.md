@@ -171,6 +171,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 32 | New logo: bigger T A S C letters, bank emblem in the centre. Sign-in page footer reads "Central Bank of India · via PDUDAIRO". About guide rewritten for all users (sign-in, roles, Places tags) | None |
 | 33 | Viewers can sign in with their name (only the admin needs Google). Excel export redone: Summary, Branches, Officers, Allotments and full Visit reports sheets, with styled headers, filters, totals, ₹ and date formats and status colours | Run `sql/12_update_v33.sql` |
 | 34 | Branch table, summary image and Excel get a **Due today** column; the next column is now the next working day (skips Sundays and 2nd / 4th Saturdays, and counts weekend-dated visits) | None |
+| 35 | Dashboard: branches A–Z with Udaipur RO first (also in image and Excel); order is By branch, Progress, By type, Officers; Officers pill "Overdue / due today"; tapping a branch opens its panel instead of redrawing. Date of birth is typed as DD-MM-YYYY | None |
 
 ---
 

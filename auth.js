@@ -180,7 +180,8 @@ async function screenPickName(who) {
     <div id="pdob" hidden>
       <div class="card" style="margin-top:12px"><div id="pwho"></div>
         <label class="f" for="dob">Your date of birth</label>
-        <input class="input" type="date" id="dob" max="${todayISO()}">
+        <input class="input mono" type="text" id="dob" inputmode="numeric" autocomplete="bday" placeholder="DD-MM-YYYY" maxlength="10" style="font-size:20px;letter-spacing:.06em">
+        <p class="hint" style="margin:6px 0 0">Type it as day, month, year, e.g. 05-08-1990</p>
         <div class="spacer"></div>
         <button class="btn block" id="check">Check</button>
         <p class="hint" id="perr" style="color:var(--bad)"></p>
@@ -211,9 +212,11 @@ async function screenPickName(who) {
     $('#dob').focus();
   };
   $('#repick').onclick = () => { $('#plist').hidden = false; $('.search').hidden = false; $('#pdob').hidden = true; picked = null; };
+  bindDobInput($('#dob'));
+  $('#dob').onkeydown = e => { if (e.key === 'Enter') $('#check').click(); };
   $('#check').onclick = async () => {
-    const dob = $('#dob').value;
-    if (!picked || !dob) { $('#perr').textContent = 'Please enter your date of birth.'; return; }
+    const dob = parseDob($('#dob').value);
+    if (!picked || !dob) { $('#perr').textContent = 'Please enter your date of birth as DD-MM-YYYY.'; return; }
     $('#check').disabled = true; $('#perr').textContent = '';
     try {
       const p = await rpc('claim_by_dob', { p_emp: picked.emp_id, p_dob: dob, p_confirm: false });
@@ -224,6 +227,22 @@ async function screenPickName(who) {
   };
   $('#so').onclick = () => signOut('local');
   if ($('#adm-skip')) $('#adm-skip').onclick = () => startApp();
+}
+
+/* Date of birth typed as DD-MM-YYYY: dashes go in by themselves */
+function bindDobInput(el) {
+  el.oninput = () => {
+    const d = el.value.replace(/\D/g, '').slice(0, 8);
+    el.value = d.length > 4 ? `${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}-${d.slice(2)}` : d;
+  };
+}
+/* "05-08-1990" → "1990-08-05", or null if it isn't a real date */
+function parseDob(v) {
+  const m = String(v || '').trim().match(/^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4})$/); if (!m) return null;
+  const [dd, mm, yy] = [+m[1], +m[2], +m[3]];
+  const t = new Date(Date.UTC(yy, mm - 1, dd));
+  if (t.getUTCFullYear() !== yy || t.getUTCMonth() !== mm - 1 || t.getUTCDate() !== dd || yy < 1940 || yy > new Date().getFullYear()) return null;
+  return `${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 }
 
 function screenConfirmClaim(who, p, dob) {
