@@ -10,6 +10,7 @@ async function viewProfile() {
       : `<div class="card"><h3>Admin</h3><p class="muted">Signed in as ${esc(S.who.gmail)} without a staff profile.</p></div>`}
     ${me ? `<h2>Gmails that open your profile</h2><div id="logins"><div class="spin" style="margin:16px auto"></div></div>
     <p class="hint">If you see a Gmail here that isn't yours, remove it and tell the Regional Office.</p>` : ''}
+    ${S.who.admin ? `<h2>Photo storage</h2><div id="storebox"><div class="spin" style="margin:16px auto"></div></div>` : ''}
     ${S.who.admin ? `<h2>Notifications</h2><div id="pushbox"><div class="spin" style="margin:16px auto"></div></div>` : ''}
     <h2>TASC Connect</h2>
     <div class="list">
@@ -31,7 +32,23 @@ async function viewProfile() {
   $('#syncnow').onclick = async () => { const b = $('#syncnow'); b.disabled = true; b.textContent = 'Syncing…';
     try { await syncAndRefresh(); toast('Synced'); } catch (e) { toast(errText(e)); } viewProfile(); };
   if (me) loadLogins();
-  if (S.who.admin) pushBox();
+  if (S.who.admin) { pushBox(); storageBox(); }
+}
+
+/* Admin: photo storage used, out of the free 1 GB (asked at most once a day) */
+async function storageBox() {
+  const el = $('#storebox'); if (!el) return;
+  let bytes = null;
+  try { const c = JSON.parse(localStorage.getItem('daura-storage') || 'null'); if (c && Date.now() - c.at < 864e5) bytes = c.bytes; } catch (e) { /* storage blocked */ }
+  if (bytes == null) { try { bytes = await rpc('admin_storage_bytes'); localStorage.setItem('daura-storage', JSON.stringify({ at: Date.now(), bytes })); } catch (e) { /* shown as unknown */ } }
+  const mb = bytes == null ? null : bytes / 1048576;
+  const pct = mb == null ? 0 : Math.min(100, mb / 1024 * 100);
+  const cls = mb >= 800 ? 'bad' : mb >= 600 ? 'warn' : '';
+  el.innerHTML = `<div class="card">${mb == null ? '<p class="hint" style="margin:0">Could not read storage use.</p>' : `
+    <div class="meter ${cls}"><i style="width:${pct.toFixed(1)}%"></i></div>
+    <div class="row"><span class="mono">${mb.toFixed(mb < 10 ? 1 : 0)} MB</span><span class="grow"></span><span class="hint">of 1 GB free</span></div>
+    ${mb >= 800 ? `<div class="note bad" style="margin-top:10px"><b>Over 800 MB.</b> Time to move photos to Google Drive. Follow "Moving photos to Drive" in SETUP.md.</div>`
+      : '<p class="hint" style="margin-bottom:0">Checked once a day. You will see a warning here at 800 MB.</p>'}`}</div>`;
 }
 
 /* ───────── Admin notifications (this phone only) ───────── */

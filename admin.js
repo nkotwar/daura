@@ -10,7 +10,6 @@ async function viewAdmin() {
     { id: 'people', label: 'People', badge: 'an-people', draw: () => admPeople(false) },
     { id: 'verify', label: 'Verify', badge: 'an-verify', draw: () => admVerify() },
     { id: 'requests', label: 'Requests', badge: 'an-requests', draw: () => admRequests() },
-    { id: 'staff', label: 'Staff list', badge: 'an-staff', draw: () => admStaff() },
     { id: 'activity', label: 'Activity', badge: 'an-activity', draw: () => admActivity() }
   ];
   const old = $('#adm-host', TV());
@@ -118,6 +117,9 @@ async function admPeople(fresh = true) {
     inactive: ['Inactive', all.filter(p => !p.active)]
   };
   admPane('people').innerHTML = `
+    <div class="row" style="margin-bottom:10px"><div class="grow hint" style="margin:0">${act.length} staff in ${new Set(act.map(p => p.branch_code)).size} branches</div>
+      <button class="btn small soft" id="ub">${ICON.upload} Upload udairo.js</button>
+      <input type="file" id="uf" accept=".js,text/javascript,application/javascript" hidden></div>
     <div class="stats">
       <div class="stat ok"><b>${linked.length}</b><span>Signed up</span></div>
       <div class="stat"><b>${act.length - linked.length}</b><span>Not yet</span></div>
@@ -144,6 +146,8 @@ async function admPeople(fresh = true) {
   $('#pq').oninput = draw;
   $$('[data-pf]').forEach(b => b.onclick = () => { S.cache.peopleFilter = b.dataset.pf; admPeople(false); });
   $('#plist').onclick = e => { const b = e.target.closest('[data-emp]'); if (b) openPerson(+b.dataset.emp); };
+  $('#ub').onclick = () => $('#uf').click();
+  $('#uf').onchange = e => { const file = e.target.files[0]; e.target.value = ''; if (file) staffUpload(file); };
 }
 
 function openPerson(emp) {
@@ -209,66 +213,41 @@ function openPerson(emp) {
   };
 }
 
-/* ───────── Staff list (udairo.js) + storage ───────── */
-async function admStaff() {
-  let bytes = null;
-  // storage use changes slowly: ask at most once a day
-  try { const c = JSON.parse(localStorage.getItem('daura-storage') || 'null'); if (c && Date.now() - c.at < 864e5) bytes = c.bytes; } catch (e) { /* storage blocked */ }
-  if (bytes == null) { try { bytes = await rpc('admin_storage_bytes'); localStorage.setItem('daura-storage', JSON.stringify({ at: Date.now(), bytes })); } catch (e) { /* shown as unknown */ } }
-  const mb = bytes == null ? null : bytes / 1048576;
-  const pct = mb == null ? 0 : Math.min(100, mb / 1024 * 100);
-  const cls = mb >= 800 ? 'bad' : mb >= 600 ? 'warn' : '';
+/* Staff list upload (from People): check what changes, then apply. */
+async function staffUpload(file) {
   const people = S.cache.people || await rpc('admin_people');
-  S.cache.people = people;
-  const act = people.filter(p => p.active);
-  admPane('staff').innerHTML = `
-    <div class="card"><h3>Staff list</h3>
-      <p class="muted">${act.length} staff in ${new Set(act.map(p => p.branch_code)).size} branches. Upload the latest <span class="mono">udairo.js</span> after transfers or postings. Matching is by Emp ID: changes are updated, new people added, and anyone missing is marked inactive (their visits stay).</p>
-      <input type="file" id="uf" accept=".js,text/javascript,application/javascript" hidden>
-      <button class="btn block" id="ub">${ICON.upload} Upload udairo.js</button>
-      <div id="up"></div>
-    </div>
-    <div class="card"><h3>Photo storage</h3>
-      ${mb == null ? '<p class="hint">Could not read storage use.</p>' : `
-      <div class="meter ${cls}"><i style="width:${pct.toFixed(1)}%"></i></div>
-      <div class="row"><span class="mono">${mb.toFixed(mb < 10 ? 1 : 0)} MB</span><span class="grow"></span><span class="hint">of 1 GB free</span></div>
-      ${mb >= 800 ? `<div class="note bad" style="margin-top:10px"><b>Over 800 MB.</b> Time to move photos to Google Drive. Follow "Moving photos to Drive" in SETUP.md.</div>`
-        : '<p class="hint">You will see a warning here at 800 MB.</p>'}`}
-    </div>`;
-  $('#ub').onclick = () => $('#uf').click();
-  $('#uf').onchange = async e => {
-    const file = e.target.files[0]; e.target.value = ''; if (!file) return;
-    const text = await file.text();
-    if (!/UDAIRO_DATA/.test(text)) { toast('That is not the staff list file. Please pick udairo.js.'); return; }
-    let D;
-    try { D = new Function(text + ';return UDAIRO_DATA;')(); } catch (err) { toast('Could not read that file.'); return; }
-    if (!D || !Array.isArray(D.branches)) { toast('That file has no branches in it.'); return; }
-    // Send only what TASC Connect needs (no DOJ, FTP, etc.).
-    const slim = { branches: D.branches.map(b => ({ branchCode: b.branchCode, branchName: b.branchName, lat: b.lat, lng: b.lng, mobile: b.mobile, size: b.size,
-      staff: (b.staff || []).map(s => ({ empId: s.empId, name: s.name, designation: s.designation, grade: s.grade, phone: s.phone, email: s.email, dob: s.dob, dept: s.dept, secondInCommand: !!s.secondInCommand })) })) };
-    const incoming = new Map(slim.branches.flatMap(b => b.staff.map(s => [s.empId, { ...s, branch: b.branchName }])));
-    const current = new Map(people.filter(p => p.active).map(p => [p.emp_id, p]));
-    const added = [...incoming.values()].filter(s => !current.has(s.empId));
-    const gone = [...current.values()].filter(p => !incoming.has(p.emp_id));
-    const moved = [...incoming.values()].filter(s => current.has(s.empId) && current.get(s.empId).branch !== s.branch);
-    const li = (arr, f) => arr.slice(0, 30).map(f).join('') + (arr.length > 30 ? `<div class="item"><span class="hint">and ${arr.length - 30} more</span></div>` : '');
-    $('#up').innerHTML = `<div class="spacer"></div><div class="note"><b>${incoming.size} staff in ${slim.branches.length} branches.</b> Please check before applying.</div>
-      ${added.length ? `<h2>New (${added.length})</h2><div class="list">${li(added, s => `<div class="item"><div class="grow"><div class="t">${esc(cleanName(s.name))}</div><div class="s">${esc(s.designation)} · ${esc(s.branch)}</div></div></div>`)}</div>` : ''}
-      ${moved.length ? `<h2>Moved (${moved.length})</h2><div class="list">${li(moved, s => `<div class="item"><div class="grow"><div class="t">${esc(cleanName(s.name))}</div><div class="s">${esc(current.get(s.empId).branch)} → ${esc(s.branch)}</div></div></div>`)}</div>` : ''}
-      ${gone.length ? `<h2>Will be marked inactive (${gone.length})</h2><div class="list">${li(gone, p => `<div class="item"><div class="grow"><div class="t">${esc(cleanName(p.name))}</div><div class="s">${esc(p.branch || '')}</div></div></div>`)}</div>` : ''}
-      ${!added.length && !moved.length && !gone.length ? '<p class="hint">No joins, moves or exits. Names, phones and other details will be refreshed.</p>' : ''}
-      <div class="row" style="margin-top:14px"><button class="btn ghost grow" id="ucan">Cancel</button><button class="btn grow" id="uok">Apply</button></div>`;
-    $('#ucan').onclick = () => { $('#up').innerHTML = ''; };
-    $('#uok').onclick = async () => {
-      $('#uok').disabled = true;
-      try {
-        const r = await rpc('admin_import_directory', { d: slim });
-        S.cache.people = null;
-        toast(`Updated: ${r.staff} staff, ${r.new} new, ${r.inactivated} marked inactive`, 4000);
-        syncNow().catch(() => {});   // bring the new staff list into the phone's copy
-        admStaff();
-      } catch (err) { $('#uok').disabled = false; toast(errText(err)); }
-    };
+  const text = await file.text();
+  if (!/UDAIRO_DATA/.test(text)) { toast('That is not the staff list file. Please pick udairo.js.'); return; }
+  let D;
+  try { D = new Function(text + ';return UDAIRO_DATA;')(); } catch (err) { toast('Could not read that file.'); return; }
+  if (!D || !Array.isArray(D.branches)) { toast('That file has no branches in it.'); return; }
+  // Send only what TASC Connect needs (no DOJ, FTP, etc.).
+  const slim = { branches: D.branches.map(b => ({ branchCode: b.branchCode, branchName: b.branchName, lat: b.lat, lng: b.lng, mobile: b.mobile, size: b.size,
+    staff: (b.staff || []).map(s => ({ empId: s.empId, name: s.name, designation: s.designation, grade: s.grade, phone: s.phone, email: s.email, dob: s.dob, dept: s.dept, secondInCommand: !!s.secondInCommand })) })) };
+  const incoming = new Map(slim.branches.flatMap(b => b.staff.map(s => [s.empId, { ...s, branch: b.branchName }])));
+  const current = new Map(people.filter(p => p.active).map(p => [p.emp_id, p]));
+  const added = [...incoming.values()].filter(s => !current.has(s.empId));
+  const gone = [...current.values()].filter(p => !incoming.has(p.emp_id));
+  const moved = [...incoming.values()].filter(s => current.has(s.empId) && current.get(s.empId).branch !== s.branch);
+  const li = (arr, f) => arr.slice(0, 30).map(f).join('') + (arr.length > 30 ? `<div class="item"><span class="hint">and ${arr.length - 30} more</span></div>` : '');
+  const body = openSheet('Update staff list', `<p class="muted" style="margin-top:0">Matching is by Emp ID: changes are updated, new people added, and anyone missing is marked inactive (their visits stay).</p>
+    <div class="note"><b>${incoming.size} staff in ${slim.branches.length} branches.</b> Please check before applying.</div>
+    ${added.length ? `<h2>New (${added.length})</h2><div class="list">${li(added, s => `<div class="item"><div class="grow"><div class="t">${esc(cleanName(s.name))}</div><div class="s">${esc(s.designation)} · ${esc(s.branch)}</div></div></div>`)}</div>` : ''}
+    ${moved.length ? `<h2>Moved (${moved.length})</h2><div class="list">${li(moved, s => `<div class="item"><div class="grow"><div class="t">${esc(cleanName(s.name))}</div><div class="s">${esc(current.get(s.empId).branch)} → ${esc(s.branch)}</div></div></div>`)}</div>` : ''}
+    ${gone.length ? `<h2>Will be marked inactive (${gone.length})</h2><div class="list">${li(gone, p => `<div class="item"><div class="grow"><div class="t">${esc(cleanName(p.name))}</div><div class="s">${esc(p.branch || '')}</div></div></div>`)}</div>` : ''}
+    ${!added.length && !moved.length && !gone.length ? '<p class="hint">No joins, moves or exits. Names, phones and other details will be refreshed.</p>' : ''}
+    <div class="row" style="margin-top:14px"><button class="btn ghost grow" id="ucan">Cancel</button><button class="btn grow" id="uok">Apply</button></div>`);
+  $('#ucan', body).onclick = () => closeSheet();
+  $('#uok', body).onclick = async () => {
+    $('#uok', body).disabled = true;
+    try {
+      const r = await rpc('admin_import_directory', { d: slim });
+      S.cache.people = null;
+      closeSheet();
+      toast(`Updated: ${r.staff} staff, ${r.new} new, ${r.inactivated} marked inactive`, 4000);
+      syncNow().catch(() => {});   // bring the new staff list into the phone's copy
+      admPeople(true);
+    } catch (err) { $('#uok', body).disabled = false; toast(errText(err)); }
   };
 }
 

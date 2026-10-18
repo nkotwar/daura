@@ -141,12 +141,12 @@ A person can link more than one Gmail. Every new link shows in **Admin → Activ
 
 ## Updating later
 
-- **New udairo.js**: Admin → Staff list → **Upload udairo.js**. You see who is new, who moved and who left before you apply. Nobody's history is lost.
+- **New udairo.js**: Admin → People → **Upload udairo.js**. You see who is new, who moved and who left before you apply. Nobody's history is lost.
 - **New app version**: upload the changed files and raise the number in `version.js`. Phones then show **Update now** in Profile.
 
 ## Moving photos to Drive
 
-Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB** it shows a warning. The step-by-step guide for moving photos to Google Drive comes with the photo update, and switching storage won't change anything else in the app.
+Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** it shows a warning. The step-by-step guide for moving photos to Google Drive comes with the photo update, and switching storage won't change anything else in the app.
 
 ## Version history
 
@@ -171,6 +171,7 @@ Admin → Staff list shows photo storage used, out of the free 1 GB. At **800 MB
 | 18 | "Log visit" is now "Submit Visit Report" (button, form title, hints) | None |
 | 19 | Fix: deleting failed with *record "old" has no field "visit_id"*. Photos are now removed only after the visit is deleted | Run `sql/08_fix_v18.sql` once |
 | 20 | To do and My visits merged into one **My visits** list with pills: All, Overdue, Today, Upcoming, Visited, Visit Verified (and On hold when any). Big count cards removed | None |
+| 21 | Admin: **Upload udairo.js** moved to People (preview opens in a panel); photo storage moved to Profile; Staff list section removed | None |
 
 ---
 
