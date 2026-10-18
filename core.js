@@ -10,7 +10,9 @@ const S = {
 const configured = DAURA_CONFIG && !/YOUR-PROJECT|PASTE_YOURS/.test(DAURA_CONFIG.supabaseUrl + DAURA_CONFIG.supabaseKey + DAURA_CONFIG.googleClientId);
 
 const sb = configured ? supabase.createClient(DAURA_CONFIG.supabaseUrl, DAURA_CONFIG.supabaseKey, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'daura-auth' }
+  // lock: run sign-in refreshes directly. The browser-wide lock it uses by default can get stuck after the
+  // phone sleeps or the app is backgrounded, and then every server call waits forever.
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: 'daura-auth', lock: (name, wait, fn) => fn() }
 }) : null;
 
 const $ = (q, el = document) => el.querySelector(q);
@@ -63,6 +65,7 @@ const ERR = {
   CANNOT_BLOCK_SELF: 'You cannot block yourself.',
   REASON_REQUIRED: 'Please give a reason.',
   ALREADY_REQUESTED: 'A request for this is already waiting with the admin.',
+  TIMEOUT: 'The server is taking too long. Check your signal and try again.',
   ALLOTMENT_ON_HOLD: 'Your request about this visit is waiting for the admin. You can log it once the admin decides.'
 };
 function errText(e) {
@@ -75,8 +78,10 @@ function errText(e) {
   return code || 'Something went wrong.';
 }
 
-async function rpc(fn, args) {
-  const { data, error } = await sb.rpc(fn, args || {});
+async function rpc(fn, args, ms = 20000) {
+  let t;
+  const late = new Promise((_, no) => { t = setTimeout(() => no({ message: 'TIMEOUT' }), ms); });
+  const { data, error } = await Promise.race([sb.rpc(fn, args || {}), late]).finally(() => clearTimeout(t));
   if (error) throw error;
   return data;
 }

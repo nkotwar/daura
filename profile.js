@@ -34,6 +34,32 @@ async function viewProfile() {
   if (S.who.admin) storageBox();
 }
 
+async function loadLogins() {
+  const el = $('#logins'); if (!el) return;
+  const paint = rows => {
+    el.innerHTML = `<div class="list">${rows.map(r => `<div class="item" style="cursor:default">
+        <div class="grow"><div class="t" style="overflow-wrap:anywhere">${esc(r.gmail)}</div>
+          <div class="s">${r.is_current ? 'This phone · ' : ''}linked ${fmtDate(r.linked_at)} · last used ${ago(r.last_seen)}</div></div>
+        <button class="btn small danger" data-rm="${esc(r.gmail)}" data-cur="${r.is_current ? 1 : ''}">Remove</button></div>`).join('')}</div>`;
+    $$('[data-rm]', el).forEach(b => b.onclick = async () => {
+      const cur = !!b.dataset.cur;
+      const ok = await confirmSheet('Remove this Gmail?', cur
+        ? `<b>${esc(b.dataset.rm)}</b> is the Gmail you are using now. You will be signed out and will need to confirm your profile again to come back.`
+        : `<b>${esc(b.dataset.rm)}</b> will no longer open your profile.`, 'Remove', true);
+      if (!ok) return;
+      try { await rpc('unlink_my_login', { p_gmail: b.dataset.rm }); S.cache.logins = null; toast('Removed'); if (cur) signOut('local'); else loadLogins(); }
+      catch (e) { toast(errText(e)); }
+    });
+  };
+  if (S.cache.logins) paint(S.cache.logins);   // show the last list straight away, then refresh
+  try { S.cache.logins = await rpc('my_logins'); if (el.isConnected) paint(S.cache.logins); }
+  catch (e) {
+    if (S.cache.logins) return;   // keep showing what we had
+    el.innerHTML = `<div class="row"><p class="hint grow" style="margin:0">${esc(errText(e))}</p><button class="btn small ghost" id="lgr">Try again</button></div>`;
+    $('#lgr', el).onclick = () => { el.innerHTML = '<div class="spin" style="margin:16px auto"></div>'; loadLogins(); };
+  }
+}
+
 /* Admin: photo storage used, out of the free 1 GB (asked at most once a day) */
 async function storageBox() {
   const el = $('#storebox'); if (!el) return;
@@ -43,11 +69,12 @@ async function storageBox() {
   const mb = bytes == null ? null : bytes / 1048576;
   const pct = mb == null ? 0 : Math.min(100, mb / 1024 * 100);
   const cls = mb >= 800 ? 'bad' : mb >= 600 ? 'warn' : '';
-  el.innerHTML = `<div class="card">${mb == null ? '<p class="hint" style="margin:0">Could not read storage use.</p>' : `
+  el.innerHTML = `<div class="card">${mb == null ? '<div class="row"><p class="hint grow" style="margin:0">Could not read storage use right now.</p><button class="btn small ghost" id="stg-r">Try again</button></div>' : `
     <div class="meter ${cls}"><i style="width:${pct.toFixed(1)}%"></i></div>
     <div class="row"><span class="mono">${mb.toFixed(mb < 10 ? 1 : 0)} MB</span><span class="grow"></span><span class="hint">of 1 GB free</span></div>
     ${mb >= 800 ? `<div class="note bad" style="margin-top:10px"><b>Over 800 MB.</b> Time to move photos to Google Drive. Follow "Moving photos to Drive" in SETUP.md.</div>`
       : '<p class="hint" style="margin-bottom:0">Checked once a day. You will see a warning here at 800 MB.</p>'}`}</div>`;
+  const r = $('#stg-r', el); if (r) r.onclick = () => { el.innerHTML = '<div class="spin" style="margin:16px auto"></div>'; storageBox(); };
 }
 
 /* App updates: the service worker keeps the app working offline; a new version.js means new files are waiting. */
