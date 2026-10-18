@@ -10,7 +10,8 @@ async function viewVisits() {
   const panes = [
     { id: 'mine', label: 'My visits', badge: 'vn-mine', draw: el => drawMine(el) },
     ...(me.is_branch_head ? [{ id: 'staff', label: 'My Staff Visits', badge: 'vn-staff', draw: el => drawStaffVisits(el) }] : []),
-    { id: 'places', label: 'Places', badge: 'vn-places', draw: el => drawPlaces(el) }
+    { id: 'places', label: 'Places', badge: 'vn-places', draw: el => drawPlaces(el) },
+    ...(S.who.viewer && !S.who.admin ? [{ id: 'people', label: 'People', badge: 'vn-people', draw: el => drawPeople(el, 'viewer') }] : [])
   ];
   const old = $('#v-host', main);
   if (old && old._pager && old._pager.ids === panes.map(p => p.id).join(',')) {   // already built: refresh quietly

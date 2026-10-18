@@ -93,50 +93,65 @@ async function admRequests() {
 }
 
 /* ───────── People ───────── */
-async function admPeople(fresh = true) {
-  if (fresh || !S.cache.people) S.cache.people = await rpc('admin_people');
-  const all = S.cache.people;
+async function admPeople(fresh = true) { return drawPeople(admPane('people'), 'admin', fresh); }
+
+/* People list. mode 'admin' (Admin → People: full controls) or 'viewer' (Visits → People: read-only).
+   Pills: Due, All, Signed up, Not yet, Branch heads, Viewers & admins (+ Blocked, Inactive for admin); a branch dropdown. */
+async function drawPeople(el, mode, fresh = true) {
+  const adm = mode === 'admin';
+  const key = adm ? 'people' : 'vpeople';
+  if (fresh || !S.cache[key]) S.cache[key] = adm ? await rpc('admin_people') : await rpc('viewer_people');
+  const everyone = S.cache[key];
+  const nlog = p => adm ? p.logins.length : (p.signins || 0);
+  const br = S.cache.peopleBranch || '';
+  const inBr = p => !br || String(p.branch_code) === br;
+  const all = everyone.filter(inBr);
   const act = all.filter(p => p.active);
-  const linked = act.filter(p => p.logins.length);
   const f = S.cache.peopleFilter || 'due';
   const due = pendingByEmp();
   const filters = {
     due: ['Due', act.filter(p => due.has(p.emp_id)).sort((a, b) => due.get(b.emp_id).late - due.get(a.emp_id).late || due.get(b.emp_id).n - due.get(a.emp_id).n)],
     all: ['All', act],
-    linked: ['Signed up', linked],
-    pending: ['Not yet', act.filter(p => !p.logins.length)],
+    linked: ['Signed up', act.filter(p => nlog(p))],
+    pending: ['Not yet', act.filter(p => !nlog(p))],
     heads: ['Branch heads', act.filter(p => p.is_branch_head)],
     roles: ['Viewers & admins', act.filter(p => p.role !== 'field')],
-    blocked: ['Blocked', all.filter(p => p.blocked)],
-    inactive: ['Inactive', all.filter(p => !p.active)]
+    ...(adm ? { blocked: ['Blocked', all.filter(p => p.blocked)], inactive: ['Inactive', all.filter(p => !p.active)] } : {})
   };
-  admPane('people').innerHTML = `
-    <div class="row" style="margin-bottom:10px"><div class="grow hint" style="margin:0">${act.length} staff in ${new Set(act.map(p => p.branch_code)).size} branches</div>
-      <button class="btn small soft" id="ub">${ICON.upload} Upload udairo.js</button>
-      <input type="file" id="uf" accept=".js,text/javascript,application/javascript" hidden></div>
-    <div class="search">${ICON.search}<input class="input" id="pq" type="search" placeholder="Name, emp ID, branch or Gmail" value="${esc(S.cache.peopleQ || '')}"></div>
+  const branches = [...new Map(everyone.filter(p => p.active && p.branch_code != null).map(p => [String(p.branch_code), p.branch || '—'])).entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]));
+  el.innerHTML = `
+    <div class="row" style="margin-bottom:10px;gap:8px">
+      <select class="input dsel" id="pbr" aria-label="Branch"><option value="">Branch: all</option>${branches.map(([c, n]) => `<option value="${c}" ${c === br ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+      ${adm ? `<button class="btn small soft" id="ub" style="flex:none">${ICON.upload} Upload udairo.js</button><input type="file" id="uf" accept=".js,text/javascript,application/javascript" hidden>` : ''}
+    </div>
+    <div class="hint" style="margin:-4px 0 8px">${act.length} staff${br ? '' : ` in ${new Set(act.map(p => p.branch_code)).size} branches`}</div>
+    <div class="search">${ICON.search}<input class="input" id="pq" type="search" placeholder="${adm ? 'Name, emp ID, branch or Gmail' : 'Name, emp ID or branch'}" value="${esc(S.cache.peopleQ || '')}"></div>
     <div class="chips">${Object.entries(filters).filter(([k, v]) => k === 'all' || v[1].length || k === f).map(([k, v]) =>
       `<button class="chip ${f === k ? 'on' : ''}" data-pf="${k}">${v[0]}<b>${v[1].length}</b></button>`).join('')}</div>
     <div class="list" id="plist"></div>`;
   const draw = () => {
-    const t = ($('#pq').value || '').trim().toLowerCase(); S.cache.peopleQ = t;
-    const rows = (filters[f] || filters.all)[1].filter(p => !t || [p.name, p.emp_id, p.branch, p.designation, ...p.logins.map(l => l.gmail)].join(' ').toLowerCase().includes(t));
-    $('#plist').innerHTML = rows.length ? rows.map(p => `<button class="item" data-emp="${p.emp_id}">
+    const t = ($('#pq', el).value || '').trim().toLowerCase(); S.cache.peopleQ = t;
+    const rows = (filters[f] || filters.all)[1].filter(p => !t || [p.name, p.emp_id, p.branch, p.designation, ...(adm ? p.logins.map(l => l.gmail) : [])].join(' ').toLowerCase().includes(t));
+    $('#plist', el).innerHTML = rows.length ? rows.map(p => `<button class="item" data-emp="${p.emp_id}">
         <div class="avatar">${esc(initials(p.name))}</div>
         <div class="grow"><div class="t">${esc(cleanName(p.name))}</div>
           <div class="s">${esc(p.designation || '')} · ${esc(p.branch || '')}</div></div>
         <div style="text-align:right;flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end">
           ${f === 'due' ? `<span class="badge warn">${due.get(p.emp_id).n} pending</span>${due.get(p.emp_id).late ? `<span class="badge bad">${due.get(p.emp_id).late} overdue</span>` : ''}` : p.blocked ? '<span class="badge bad">Blocked</span>' : !p.active ? '<span class="badge">Inactive</span>'
-            : p.logins.length ? `<span class="badge ok">${p.logins.length > 1 ? p.logins.length + ' Gmails' : 'Signed up'}</span>` : '<span class="badge">Not yet</span>'}
+            : nlog(p) ? `<span class="badge ok">${adm && nlog(p) > 1 ? nlog(p) + ' sign-ins' : 'Signed up'}</span>` : '<span class="badge">Not yet</span>'}
           ${f !== 'due' && p.role !== 'field' ? `<span class="badge acc">${roleLabel(p.role)}</span>` : ''}
-        </div></button>`).join('') : emptyState(ICON.search, 'No one matches', 'Try part of a name, an Emp ID, a branch or a Gmail.');
+        </div></button>`).join('') : emptyState(ICON.search, 'No one matches', 'Try part of a name, an Emp ID or a branch.');
   };
   draw();
-  $('#pq').oninput = draw;
-  $$('[data-pf]').forEach(b => b.onclick = () => { S.cache.peopleFilter = b.dataset.pf; admPeople(false); });
-  $('#plist').onclick = e => { const b = e.target.closest('[data-emp]'); if (b) openPerson(+b.dataset.emp); };
-  $('#ub').onclick = () => $('#uf').click();
-  $('#uf').onchange = e => { const file = e.target.files[0]; e.target.value = ''; if (file) staffUpload(file); };
+  $('#pq', el).oninput = draw;
+  $('#pbr', el).onchange = e => { S.cache.peopleBranch = e.target.value; drawPeople(el, mode, false); };
+  $$('[data-pf]', el).forEach(b => b.onclick = () => { S.cache.peopleFilter = b.dataset.pf; drawPeople(el, mode, false); });
+  $('#plist', el).onclick = e => { const b = e.target.closest('[data-emp]'); if (b) (adm ? openPerson(+b.dataset.emp) : openStaff(+b.dataset.emp)); };
+  if (adm) {
+    $('#ub', el).onclick = () => $('#uf', el).click();
+    $('#uf', el).onchange = e => { const file = e.target.files[0]; e.target.value = ''; if (file) staffUpload(file); };
+  }
 }
 
 /* Allotments not visited yet (by them or a colleague), per person: { n, late } — from the phone's copy */

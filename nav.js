@@ -174,7 +174,7 @@ document.addEventListener('click', () => { if (!NAV.armed && S.who && $('#tabs')
       await new Promise(r => setTimeout(r, 400));
       location.reload(); return;
     }
-    S.cache.people = null;
+    S.cache.people = null; S.cache.vpeople = null;
     let r = null;
     try { [r] = await Promise.all([syncAndRefresh(), flushOutbox(), checkForUpdate()]); }
     catch (err) { toast(isNetErr(err) ? 'No internet. Showing what is saved on this phone.' : errText(err)); }
