@@ -272,7 +272,8 @@ const ACT = {
   request_raised: (a) => `raised a ${String(a.detail?.kind || '').replace('_', ' ')} request`,
   request_decided: (a) => `${a.detail?.approved ? 'approved' : 'declined'} a request`,
   assignment_reassigned: (a) => a.detail?.entity ? `reallotted ${esc(a.detail.entity)} to ${esc(cleanName(a.target_name || personName(+a.detail.to)))}` : 'reassigned a visit',
-  place_reopened: () => 'reopened a closed place'
+  place_reopened: () => 'reopened a closed place',
+  place_deleted: (a) => `deleted the place ${esc(a.detail?.entity || '')}${a.detail?.visits ? ` with ${a.detail.visits} visit report${a.detail.visits > 1 ? 's' : ''}` : ''}`
 };
 async function admActivity() {
   const rows = await rpc('admin_activity', { p_limit: 150 });

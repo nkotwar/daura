@@ -187,9 +187,11 @@ async function openPlace(e, assignment) {
         <div class="grow"><div class="t">${esc(cleanName(v.visitor))}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}${v.next_step ? ' · Next: ' + esc(v.next_step) : ''}</div></div>
         <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Submitted'}</span>${v.can_open ? `<span class="chev">${ICON.chev}</span>` : ''}</button>`).join('')}</div>`
       : '<p class="hint">Not visited yet.</p>'}
-    ${myAsg && !held ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}`;
+    ${myAsg && !held ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}
+    ${S.who.admin ? `<div class="spacer"></div><button class="btn ghost block small" id="pl-del" style="color:var(--bad)">Delete this place</button>` : ''}`;
 
   loadAssignees($('#pl-asg', body), e.id);
+  if ($('#pl-del', body)) $('#pl-del', body).onclick = () => deletePlace(e);
   const go = (nextNo) => openVisitForm({ entity: e, assignment: myAsg && !held ? assignment : null, nextNo });
   if ($('#pl-log', body)) $('#pl-log', body).onclick = () => go(1);
   if ($('#pl-fu', body)) $('#pl-fu', body).onclick = () => go(latest.visit_no + 1);
@@ -204,6 +206,23 @@ async function openPlace(e, assignment) {
   $$('[data-v]', body).forEach(b => b.onclick = () => openVisit(b.dataset.v));
   if ($('#pl-reas', body)) $('#pl-reas', body).onclick = () => askRequest('reassign', null, assignment.id, `Reassign ${e.name}`, 'Why should someone else visit? e.g. not in my area, I am on leave');
   if ($('#pl-rem', body)) $('#pl-rem', body).onclick = () => askRequest('delete_assignment', null, assignment.id, `Remove ${e.name}`, 'Why should this visit be removed? e.g. closed down, duplicate, not relevant');
+}
+
+/* Admin: delete a place, with its allotments and visit reports */
+async function deletePlace(e) {
+  const nv = visitsOf(e.id).length, na = all('assignments').filter(a => a.entity_id === e.id).length;
+  const what = [na ? `its allotment${na > 1 ? 's' : ''}` : '', nv ? `<b>${nv} visit report${nv > 1 ? 's' : ''}</b> with their photos` : ''].filter(Boolean).join(' and ');
+  const ok = await confirmSheet('Delete this place?', `<b>${esc(e.name)}</b> will be removed from TASC Connect${what ? ', along with ' + what : ''}. This can't be undone.`, 'Delete place', true);
+  if (!ok) return openPlace(e);
+  try {
+    const r = await rpc('admin_delete_place', { p_entity: e.id });
+    if (r && r.paths && r.paths.length) sb.storage.from('photos').remove(r.paths).catch(() => {});
+    visitsOf(e.id).forEach(v => dropVisit(v.id));
+    all('assignments').filter(a => a.entity_id === e.id).forEach(a => drop('assignments', a.id));
+    drop('entities', e.id);
+    closeSheet(); toast('Place deleted');
+    if (VIEWS[S.tab]) VIEWS[S.tab]();
+  } catch (err) { toast(errText(err)); openPlace(e); }
 }
 
 /* A reason box → request to the admin */
