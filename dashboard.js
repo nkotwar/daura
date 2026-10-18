@@ -165,10 +165,10 @@ async function viewDashboard(force = false) {
       ${!M.vis.length ? '<p class="hint">No visits logged yet.</p>' : ''}
     </div>
 
-    <div class="card"><h3>Waiting for verification</h3>
+    ${S.who.admin ? `<div class="card"><h3>Waiting for verification</h3>
       ${M.waiting ? `<div class="row"><div class="grow"><b class="mono" style="font-size:20px">${M.waiting}</b> report${M.waiting > 1 ? 's' : ''} · oldest ${ago(M.waitOldest)}</div>
-        ${S.who.admin ? '<button class="btn small soft" id="d-ver">Open Verify</button>' : ''}</div>` : '<p class="hint">Nothing waiting.</p>'}
-    </div>
+        <button class="btn small soft" id="d-ver">Open Verify</button></div>` : '<p class="hint">Nothing waiting.</p>'}
+    </div>` : ''}
 
     ${M.followDue.length ? `<div class="card" id="fu-card" style="scroll-margin-top:70px"><h3>Follow-ups due</h3><div class="list">${M.followDue.slice(0, 30).map(v => `<button class="item" data-v="${v.id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
       <div class="s">${esc(personName(v.visitor))} · ${esc(v.next_step || 'Follow-up')}</div></div><span class="badge ${v.followup_on < M.today ? 'bad' : 'warn'}">${fmtDate(v.followup_on)}</span></button>`).join('')}</div></div>` : ''}
