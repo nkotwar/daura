@@ -165,6 +165,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 26 | Fix: Profile stuck loading (Gmails, photo storage). Server calls give up after 20 s with a Try again instead of spinning forever | None |
 | 27 | Visit report form: Headcount (and its Staff/Members dropdown) removed | None |
 | 28 | **Sign in with your name** (name + date of birth, Google optional; admin and viewer need Google). Admin can allot a new place while adding it, and **Allot / Reallot or change date** on any place, with a note for staff | Turn on **Allow anonymous sign-ins**, then run `sql/10_update_v28.sql` |
+| 29 | Name sign-in shows the exact reason if it fails | None |
 
 ---
 

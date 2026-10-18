@@ -42,7 +42,8 @@ function screenSignIn(note) {
         if (error) throw error;
         await route({ fresh: true });
       } catch (e) {
-        screenSignIn({ kind: 'bad', html: /anonymous/i.test(e.message || '') ? 'Name sign-in is not switched on yet. Please use Google for now.' : esc(errText(e)) });
+        screenSignIn({ kind: 'bad', html: (/anonymous.*disabled|disabled.*anonymous/i.test(e.message || '') ? 'Name sign-in is not switched on yet. Please use Google for now.' : 'Name sign-in did not work. Please use Google for now.')
+          + `<br><small class="mono">${esc(e.message || String(e))}</small>` });
       }
     };
   }
