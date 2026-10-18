@@ -140,7 +140,8 @@ document.addEventListener('click', () => { if (!NAV.armed && S.who && $('#tabs')
   const el = $('#ptr');
   const MAX = 110, ARM = 64;
   let y0 = 0, x0 = 0, pulling = false, armed = false, busy = false, d = 0;
-  const can = () => !busy && !!S.who && S.who.state === 'linked' && !$('#tabs').hidden && !$('#layer .scrim') && (window.scrollY || document.documentElement.scrollTop) <= 0;
+  const inApp = () => !!S.who && S.who.state === 'linked' && !$('#tabs').hidden;
+  const can = () => !busy && !$('#layer .scrim') && (window.scrollY || document.documentElement.scrollTop) <= 0;
   const place = (shown, spin) => {
     const top = $('#top').getBoundingClientRect().bottom;
     el.style.top = (top - 44) + 'px';
@@ -168,6 +169,11 @@ document.addEventListener('click', () => { if (!NAV.armed && S.who && $('#tabs')
     busy = true; armed = false;
     el.style.transition = 'transform .2s ease'; place(ARM, 0); el.classList.add('busy');
     const t0 = Date.now();
+    if (!inApp()) {   // sign-in and other start screens: fetch the latest app and start again
+      try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) await reg.update(); } catch (err) { /* offline */ }
+      await new Promise(r => setTimeout(r, 400));
+      location.reload(); return;
+    }
     S.cache.people = null;
     let r = null;
     try { [r] = await Promise.all([syncAndRefresh(), flushOutbox(), checkForUpdate()]); }
