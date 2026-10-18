@@ -107,7 +107,9 @@ async function admPeople(fresh = true) {
   const act = all.filter(p => p.active);
   const linked = act.filter(p => p.logins.length);
   const f = S.cache.peopleFilter || 'all';
+  const due = pendingByEmp();
   const filters = {
+    due: ['Due', act.filter(p => due.has(p.emp_id)).sort((a, b) => due.get(b.emp_id).late - due.get(a.emp_id).late || due.get(b.emp_id).n - due.get(a.emp_id).n)],
     all: ['All', act],
     linked: ['Signed up', linked],
     pending: ['Not yet', act.filter(p => !p.logins.length)],
@@ -126,7 +128,7 @@ async function admPeople(fresh = true) {
       <div class="stat"><b>${act.filter(p => p.is_branch_head && p.logins.length).length}/${act.filter(p => p.is_branch_head).length}</b><span>Branch heads in</span></div>
     </div>
     <div class="search">${ICON.search}<input class="input" id="pq" type="search" placeholder="Name, emp ID, branch or Gmail" value="${esc(S.cache.peopleQ || '')}"></div>
-    <div class="chips">${Object.entries(filters).filter(([k, v]) => k === 'all' || v[1].length).map(([k, v]) =>
+    <div class="chips">${Object.entries(filters).filter(([k, v]) => k === 'all' || v[1].length || k === f).map(([k, v]) =>
       `<button class="chip ${f === k ? 'on' : ''}" data-pf="${k}">${v[0]}<b>${v[1].length}</b></button>`).join('')}</div>
     <div class="list" id="plist"></div>`;
   const draw = () => {
@@ -137,9 +139,9 @@ async function admPeople(fresh = true) {
         <div class="grow"><div class="t">${esc(cleanName(p.name))}</div>
           <div class="s">${esc(p.designation || '')} · ${esc(p.branch || '')}</div></div>
         <div style="text-align:right;flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end">
-          ${p.blocked ? '<span class="badge bad">Blocked</span>' : !p.active ? '<span class="badge">Inactive</span>'
+          ${f === 'due' ? `<span class="badge warn">${due.get(p.emp_id).n} pending</span>${due.get(p.emp_id).late ? `<span class="badge bad">${due.get(p.emp_id).late} overdue</span>` : ''}` : p.blocked ? '<span class="badge bad">Blocked</span>' : !p.active ? '<span class="badge">Inactive</span>'
             : p.logins.length ? `<span class="badge ok">${p.logins.length > 1 ? p.logins.length + ' Gmails' : 'Signed up'}</span>` : '<span class="badge">Not yet</span>'}
-          ${p.role !== 'field' ? `<span class="badge acc">${roleLabel(p.role)}</span>` : ''}
+          ${f !== 'due' && p.role !== 'field' ? `<span class="badge acc">${roleLabel(p.role)}</span>` : ''}
         </div></button>`).join('') : emptyState(ICON.search, 'No one matches', 'Try part of a name, an Emp ID, a branch or a Gmail.');
   };
   draw();
@@ -148,6 +150,21 @@ async function admPeople(fresh = true) {
   $('#plist').onclick = e => { const b = e.target.closest('[data-emp]'); if (b) openPerson(+b.dataset.emp); };
   $('#ub').onclick = () => $('#uf').click();
   $('#uf').onchange = e => { const file = e.target.files[0]; e.target.value = ''; if (file) staffUpload(file); };
+}
+
+/* Allotments not visited yet (by them or a colleague), per person: { n, late } — from the phone's copy */
+function pendingByEmp() {
+  const today = todayISO(), m = new Map();
+  const vs = all('visits'), byAsg = new Set(vs.filter(v => v.assignment_id).map(v => v.assignment_id));
+  const held = new Set(all('requests').filter(r => r.status === 'pending' && r.assignment_id).map(r => r.assignment_id));
+  for (const a of openAsg()) {
+    if (byAsg.has(a.id) || held.has(a.id)) continue;
+    if (vs.some(v => v.entity_id === a.entity_id && v.visitor !== a.assignee)) continue;   // a colleague visited
+    const c = m.get(a.assignee) || { n: 0, late: 0 };
+    c.n++; if (a.scheduled_on && a.scheduled_on < today) c.late++;
+    m.set(a.assignee, c);
+  }
+  return m;
 }
 
 function openPerson(emp) {

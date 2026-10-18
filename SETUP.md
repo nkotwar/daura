@@ -172,6 +172,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 19 | Fix: deleting failed with *record "old" has no field "visit_id"*. Photos are now removed only after the visit is deleted | Run `sql/08_fix_v18.sql` once |
 | 20 | To do and My visits merged into one **My visits** list with pills: All, Overdue, Today, Upcoming, Visited, Visit Verified (and On hold when any). Big count cards removed | None |
 | 21 | Admin: **Upload udairo.js** moved to People (preview opens in a panel); photo storage moved to Profile; Staff list section removed | None |
+| 22 | Admin → People: **Due** pill lists staff with allotted visits still pending, with pending and overdue counts | None |
 
 ---
 
