@@ -178,6 +178,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 39 | Admin can **Delete this place** (with its allotments and visit reports); shows in Activity | Run `sql/13_update_v39.sql` |
 | 40 | Deleting a place asks you to type **delete** first | None |
 | 41 | Viewers get a read-only **People** section in Visits (Due, signed up, roles; no dates of birth or Gmails). Both People lists have a branch dropdown | Run `sql/14_update_v41.sql` |
+| 42 | Staff who add a place get it allotted to themselves (with a visit date); they can delete a place they added until a visit report exists. **+ Add place** sits beside the search in Places; from My visits it opens the form directly | Run `sql/15_update_v42.sql` |
 
 ---
 

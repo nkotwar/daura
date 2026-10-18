@@ -96,7 +96,7 @@ async function drawMine(el, noFetch) {
   if (!total && !waiting.length) {
     el.innerHTML = emptyState(ICON.calendar, 'Nothing here yet',
       'Visits the Regional Office allots to you show up here with their due dates, and so do the visit reports you submit.',
-      '<button class="btn soft" data-goto="places">Visit a place on your own</button>');
+      '<button class="btn soft" onclick="openNewPlace()">Visit a place on your own</button>');
     return;
   }
   let f = S.cache.visitFilter;
@@ -135,7 +135,7 @@ async function drawMine(el, noFetch) {
         <span class="badge ${v.followup_on < today ? 'bad' : v.followup_on === today ? 'warn' : ''}">${fmtDate(v.followup_on)}</span></button>`).join('')}</div>` : ''}
     ${body}
     <div class="spacer"></div>
-    <p class="hint" style="text-align:center">Visiting somewhere not on your list? <button class="linkbtn" data-goto="places">Find or add it in Places</button></p>`;
+    <p class="hint" style="text-align:center">Visiting somewhere not on your list? <button class="linkbtn" onclick="openNewPlace()">Add the place</button></p>`;
 
   $$('.chip[data-f]', el).forEach(b => b.onclick = () => { S.cache.visitFilter = b.dataset.f; drawMine(el, true); });
   $$('[data-a]', el).forEach(b => b.onclick = () => { const a = S.cache.visits.asg.find(x => x.id === b.dataset.a); openPlace(a.entity, a); });

@@ -29,10 +29,10 @@ async function drawPlaces(el) {
   const info = placeInfo(rows);
   let f = S.cache.placeF || 'all'; if (f !== 'all' && !sets[f]) f = 'all';
   const count = k => k === 'all' ? list.length : sets[k].size;
-  el.innerHTML = `<div class="row" style="margin-bottom:10px"><div class="search grow">${ICON.search}<input class="input" id="eq" type="search" placeholder="Search places" value="${esc(S.cache.placeQ || '')}" autocomplete="off"></div></div>
+  el.innerHTML = `<div class="row" style="margin-bottom:10px;gap:8px"><div class="search grow" style="margin:0">${ICON.search}<input class="input" id="eq" type="search" placeholder="Search places" value="${esc(S.cache.placeQ || '')}" autocomplete="off"></div>
+      <button class="btn soft" id="addp" style="flex:none;min-height:44px;padding:0 14px">+ Add place</button></div>
     <div class="chips wrap" id="pf">${PLACE_PILLS.map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''} ${k === 'overdue' && count(k) && f !== k ? 'hot' : ''}" data-pf="${k}">${l}<b>${count(k)}</b></button>`).join('')}</div>
-    <div class="list" id="el"></div>
-    <div class="spacer"></div><button class="btn soft block" id="addp">+ Add a new place</button>`;
+    <div class="list" id="el"></div>`;
   const draw = () => {
     const t = $('#eq').value.trim().toLowerCase(); S.cache.placeQ = t;
     let rs = list.filter(e => (f === 'all' || sets[f].has(e.id)) && (!t || (e.name + ' ' + (e.area || '') + ' ' + e.type + ' ' + (e.address || '')).toLowerCase().includes(t)));
@@ -111,11 +111,14 @@ async function openNewPlace(prefill = '') {
     <label class="f" for="np-n">Name</label><input class="input" id="np-n" value="${esc(prefill)}" autocomplete="off">
     <div id="np-dup"></div>
     <label class="f" for="np-t">Type</label><select class="input" id="np-t">${setting('entity_types').map(t => `<option>${esc(t)}</option>`).join('')}</select>
-    <label class="f" for="np-a">Town / area</label><input class="input" id="np-a" value="${esc(S.who.me.branch || '')}">
+    <label class="f" for="np-a">Town / area</label><input class="input" id="np-a" value="${esc((S.who.me || {}).branch || '')}">
     <label class="f" for="np-ad">Address</label><textarea class="input" id="np-ad" rows="2"></textarea>
     <label class="f" for="np-cp">Contact person</label><input class="input" id="np-cp" placeholder="Name and designation">
     <label class="f" for="np-c">Contact details</label><input class="input" id="np-c" placeholder="Phone, email, website">
-    ${S.who.admin ? `<h4 class="dh" style="margin-top:20px">Allotment</h4>${allotFieldsHTML(null, true)}` : ''}
+    ${S.who.admin ? `<h4 class="dh" style="margin-top:20px">Allotment</h4>${allotFieldsHTML(null, true)}`
+      : `<h4 class="dh" style="margin-top:20px">Allotment</h4>
+        <div class="item" style="cursor:default"><div class="avatar">${esc(initials(S.who.me.name))}</div><div class="grow"><div class="t">${esc(cleanName(S.who.me.name))} (you)</div><div class="s">Places you add are allotted to you</div></div><span style="width:18px;height:18px;flex:none;color:var(--faint);display:inline-flex">${ICON.lock}</span></div>
+        <label class="f" for="np-d">Visit by</label><input class="input" type="date" id="np-d" min="${todayISO()}" value="${todayISO()}">`}
     <p class="hint" id="np-err" style="color:var(--bad)"></p>
     <button class="btn block" id="np-save">Add place</button>`);
   const allotVal = S.who.admin ? bindAllotFields(body, null) : null;
@@ -143,7 +146,11 @@ async function openNewPlace(prefill = '') {
         try { put('assignments', await rpc('admin_allot', { p_entity: e.id, p_to: av.to, p_date: av.date, p_campaign: av.camp, p_note: av.note }));
           toast(`Place added and allotted to ${personName(av.to)}`); }
         catch (err) { toast('Place added, but not allotted: ' + errText(err), 4000); }
+      } else if (!S.who.admin) {
+        try { put('assignments', await rpc('self_allot', { p_entity: e.id, p_date: $('#np-d', body).value || todayISO() })); toast('Place added and allotted to you'); }
+        catch (err) { toast('Place added, but not allotted: ' + errText(err), 4000); }
       } else toast('Place added');
+      if (S.cache.visits) loadMyWork();
       openPlace(e);
     } catch (err) { $('#np-save', body).disabled = false; $('#np-err', body).textContent = errText(err); }
   };
@@ -188,7 +195,8 @@ async function openPlace(e, assignment) {
         <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Submitted'}</span>${v.can_open ? `<span class="chev">${ICON.chev}</span>` : ''}</button>`).join('')}</div>`
       : '<p class="hint">Not visited yet.</p>'}
     ${myAsg && !held ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}
-    ${S.who.admin ? `<div class="spacer"></div><button class="btn ghost block small" id="pl-del" style="color:var(--bad)">Delete this place</button>` : ''}`;
+    ${S.who.admin || (me && e.created_by === me.emp_id && !tl.length) ? `<div class="spacer"></div><button class="btn ghost block small" id="pl-del" style="color:var(--bad)">Delete this place</button>`
+      : me && e.created_by === me.emp_id ? '<p class="hint" style="text-align:center;margin-top:16px">You added this place. To delete it, first delete its visit report.</p>' : ''}`;
 
   loadAssignees($('#pl-asg', body), e.id);
   if ($('#pl-del', body)) $('#pl-del', body).onclick = () => deletePlace(e);
@@ -226,7 +234,7 @@ async function deletePlace(e) {
   });
   if (!ok) return openPlace(e);
   try {
-    const r = await rpc('admin_delete_place', { p_entity: e.id });
+    const r = S.who.admin ? await rpc('admin_delete_place', { p_entity: e.id }) : (await rpc('delete_my_place', { p_entity: e.id }), null);
     if (r && r.paths && r.paths.length) sb.storage.from('photos').remove(r.paths).catch(() => {});
     visitsOf(e.id).forEach(v => dropVisit(v.id));
     all('assignments').filter(a => a.entity_id === e.id).forEach(a => drop('assignments', a.id));
