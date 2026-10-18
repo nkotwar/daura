@@ -1,5 +1,5 @@
 /* TASC Connect · Dashboard (admin and viewers). Everything is worked out on the phone from the live data:
-   completion, overdue ageing, delays, business, verification pending with each branch head, officers, photos.
+   completion, overdue ageing, delays, business, verification pending, officers, photos.
    Plus WhatsApp nudges, Excel export and a shareable summary image. */
 
 async function fetchAll(build) {
@@ -81,19 +81,13 @@ function dashModel(D, f) {
   vis.filter(v => !v.assignment_id).forEach(v => oo(v.visitor).own++);
   // by type
   const byType = countBy(rows, r => r.a.entity.type).map(([t]) => { const rr = rows.filter(r => r.a.entity.type === t); return { t, total: rr.length, visited: rr.filter(r => r.v).length, overdue: rr.filter(r => r.st === 'overdue').length }; });
-  // verification pending, per verifier (branch head of the visitor's branch, or admin for BHs / RO staff)
-  const verifiers = new Map();
-  vis.filter(v => v.status === 'submitted').forEach(v => {
-    const isAdmin = ro.has(v.visitor_branch) || staff(v.visitor).is_branch_head;
-    const bh = isAdmin ? null : [...S.dir.values()].find(p => p.branch_code === v.visitor_branch && p.is_branch_head);
-    const key = bh ? bh.emp_id : 'admin';
-    if (!verifiers.has(key)) verifiers.set(key, { key, name: bh ? cleanName(bh.name) : 'You (admin)', branch: bh ? bh.branch : 'Branch heads & RO staff', phone: bh ? bh.phone : null, n: 0, oldest: null });
-    const x = verifiers.get(key); x.n++; if (!x.oldest || v.logged_at < x.oldest) x.oldest = v.logged_at;
-  });
+  // verification pending (only the admin verifies)
+  const waitingV = vis.filter(v => v.status === 'submitted');
+  const waitOldest = waitingV.reduce((m, v) => !m || v.logged_at < m ? v.logged_at : m, null);
   return { today, tmr, rows, vis, n, visited, ageing, delays, onTime, avgDelay, followDue, biz, outcomes, products, banking, otherBanks,
     byBranch: [...byBranch.values()].sort((a, b) => b.overdue - a.overdue || b.tmr - a.tmr || b.total - a.total || a.name.localeCompare(b.name)),
     byOff: [...byOff.values()].sort((a, b) => b.overdue - a.overdue || a.name.localeCompare(b.name)),
-    byType, verifiers: [...verifiers.values()].sort((a, b) => b.n - a.n), bname };
+    byType, waiting: waitingV.length, waitOldest, bname };
 }
 
 /* ───────── view ───────── */
@@ -151,10 +145,8 @@ async function viewDashboard(force = false) {
     </div>
 
     <div class="card"><h3>Waiting for verification</h3>
-      ${M.verifiers.length ? `<div class="list">${M.verifiers.map(x => {
-        const wa = x.phone && waLink(x.phone, `Dear ${x.name}, ${x.n} visit${x.n > 1 ? 's' : ''} by your branch staff ${x.n > 1 ? 'are' : 'is'} waiting for your verification in TASC Connect (Visits → Verify). Kindly check and verify: ${daoraLink()}`);
-        return `<div class="item" style="cursor:default"><div class="grow"><div class="t">${esc(x.name)}</div><div class="s">${esc(x.branch || '')} · oldest ${ago(x.oldest)}</div></div>
-          <span class="badge warn">${x.n}</span>${nudgeBtns(wa, x.phone && telLink(x.phone))}</div>`; }).join('')}</div>` : '<p class="hint">Nothing waiting.</p>'}
+      ${M.waiting ? `<div class="row"><div class="grow"><b class="mono" style="font-size:20px">${M.waiting}</b> report${M.waiting > 1 ? 's' : ''} · oldest ${ago(M.waitOldest)}</div>
+        ${S.who.admin ? '<button class="btn small soft" id="d-ver">Open Verify</button>' : ''}</div>` : '<p class="hint">Nothing waiting.</p>'}
     </div>
 
     <div class="card"><h3>By branch</h3>
@@ -194,6 +186,7 @@ async function viewDashboard(force = false) {
   if ($('#df-c')) $('#df-c').onchange = e => setF('camp', +e.target.value || null);
   $('#df-t').onchange = e => setF('type', e.target.value);
   $('#df-b').onchange = e => setF('branch', +e.target.value || null);
+  if ($('#d-ver')) $('#d-ver').onclick = () => { S.cache.adminSeg = 'verify'; show('admin'); setTimeout(() => { const h = $('#adm-host'); if (h && h._pager) h._pager.go('verify'); }, 50); };
   $('#df-r').onclick = async () => { $('#df-r').disabled = true; try { await syncAndRefresh(); } catch (e) { toast(errText(e)); } const b = $('#df-r'); if (b) b.disabled = false; };
   $$('[data-br]').forEach(r => r.onclick = () => { f.branch = +r.dataset.br; viewDashboard(); window.scrollTo(0, 0); });
   $$('[data-of]').forEach(b => b.onclick = () => { S.cache.offF = b.dataset.of; viewDashboard(); });

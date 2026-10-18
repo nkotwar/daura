@@ -5,7 +5,7 @@ async function viewProfile() {
   const main = TV();
   main.innerHTML = `${S.updateReady ? updateBar() : ''}
     ${me ? profileCard(me, null) + `<div class="row wrap" style="margin:-4px 0 14px">
-        <span class="badge acc">${roleLabel(me.role)}</span>${me.is_branch_head ? '<span class="badge ok">Branch head: verifies branch visits</span>' : ''}
+        <span class="badge acc">${roleLabel(me.role)}</span>${me.is_branch_head ? '<span class="badge ok">Branch head: sees branch staff visits</span>' : ''}
         ${S.who.admin && me.role !== 'admin' ? '<span class="badge acc">Admin</span>' : ''}</div>`
       : `<div class="card"><h3>Admin</h3><p class="muted">Signed in as ${esc(S.who.gmail)} without a staff profile.</p></div>`}
     ${S.who.needs_google ? `<div class="note warn" style="margin-bottom:12px">You signed in with your name, so you have staff access here. For ${me && me.role === 'viewer' ? 'the Dashboard' : 'Admin and the Dashboard'}, sign out and sign in with Google.</div>` : ''}

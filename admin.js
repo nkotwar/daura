@@ -27,25 +27,17 @@ async function adminBadges() {
 }
 
 /* ───────── Verify (admin) ─────────
-   "Needs you": visits by branch heads and RO staff (no branch head above them). "All": every unverified visit. */
-async function admVerify(noFetch) {
+   Every report waiting for a check, oldest first. Only the admin verifies. */
+async function admVerify() {
   const rows = all('visits').filter(v => v.status === 'submitted').map(withEntity).sort((a, b) => (a.visited_at || '').localeCompare(b.visited_at || ''));
-  const branches = all('branches');
-  const ro = new Set(branches.filter(b => b.is_ro).map(b => b.code));
-  const bname = new Map(branches.map(b => [b.code, b.name]));
-  const needs = v => ro.has(v.visitor_branch) || (S.dir.get(v.visitor) || {}).is_branch_head;
-  const f = S.cache.avf || 'needs';
-  const list = f === 'needs' ? rows.filter(needs) : rows;
-  admPane('verify').innerHTML = `<div class="chips">
-      <button class="chip ${f === 'needs' ? 'on' : ''}" data-avf="needs">Needs you<b>${rows.filter(needs).length}</b></button>
-      <button class="chip ${f === 'all' ? 'on' : ''}" data-avf="all">All unverified<b>${rows.length}</b></button></div>
-    <p class="hint">Branch heads verify their own staff. Visits by branch heads and RO staff come to you. You can verify any visit.</p>
-    ${list.length ? `<div class="list">${list.map(v => `<button class="item" data-v="${v.id}">
+  const bname = new Map(all('branches').map(b => [b.code, b.name]));
+  admPane('verify').innerHTML = rows.length ? `<p class="hint" style="margin-top:0">${rows.length} report${rows.length > 1 ? 's' : ''} waiting, oldest first. Open one, look at the photos and details, then tap <b>Verify</b>.</p>
+    <div class="list">${rows.map(v => `<button class="item" data-v="${v.id}">
         <div class="avatar">${esc(initials(personName(v.visitor)))}</div>
         <div class="grow"><div class="t">${esc(v.entity.name)} · V${v.visit_no}</div>
           <div class="s">${esc(personName(v.visitor))} · ${esc(bname.get(v.visitor_branch) || '')} · ${fmtDateTime(v.visited_at)}</div></div>
-        <span class="chev">${ICON.chev}</span></button>`).join('')}</div>` : emptyState(ICON.shield, f === 'needs' ? 'Nothing needs you' : 'Nothing waiting', f === 'needs' ? 'Visits by branch heads and RO staff come here for your check. Branch heads verify their own staff.' : 'Every logged visit has been verified.')}`;
-  $$('[data-avf]', admPane('verify')).forEach(b => b.onclick = () => { S.cache.avf = b.dataset.avf; admVerify(true); });
+        <span class="chev">${ICON.chev}</span></button>`).join('')}</div>`
+    : emptyState(ICON.shield, 'Nothing waiting', 'Every submitted visit report has been verified.');
   $$('[data-v]', admPane('verify')).forEach(b => b.onclick = () => openVisit(b.dataset.v));
 }
 

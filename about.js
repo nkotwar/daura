@@ -10,7 +10,7 @@ function aboutHTML() {
   </header>
 
   ${ch('I', 'The idea', 'Every allotted place, visited and on record', `
-    <p class="ab-lede">TASC Connect holds the list of places the Regional Office wants visited: hospitals, schools, trusts, places of worship and any you add yourself. Each is allotted to someone with a date. You go, you log what happened with a few photos, your branch head checks it, and the Regional Office sees the whole region at a glance.</p>
+    <p class="ab-lede">TASC Connect holds the list of places the Regional Office wants visited: hospitals, schools, trusts, places of worship and any you add yourself. Each is allotted to someone with a date. You go, you submit a visit report with a few photos, the Regional Office checks it and sees the whole region at a glance.</p>
     <blockquote>One visit leads to the next. Set a follow-up date and TASC Connect reminds you.</blockquote>`)}
 
   ${ch('II', 'A visit, start to finish', 'Six steps', `
@@ -19,19 +19,19 @@ function aboutHTML() {
       <li><b>Go</b><span>Find on Maps takes you there.</span></li>
       <li><b>Report</b><span>Submit Visit Report: who you met, their banking, the potential and what came of it.</span></li>
       <li><b>Photograph</b><span>Up to four. Photos taken in TASC Connect are stamped and pin the place on the map.</span></li>
-      <li><b>Verify</b><span>Your branch head checks it. Branch heads' and RO visits go to the Regional Office.</span></li>
+      <li><b>Verify</b><span>The Regional Office checks your report.</span></li>
       <li><b>Follow up</b><span>Once verified, add Visit 2, 3… or close it: account opened, rejected or not feasible.</span></li>
     </ol>`)}
 
   ${ch('III', 'Who sees what', 'Your sign-in, your profile, your visits', `
     <div class="ab-chain"><span>Your name + DOB<br><small>or Google</small></span><i>→</i><span>Your profile<br><small>Emp ID, confirmed once</small></span><i>→</i><span>What you see<br><small>by your role</small></span></div>
-    <p>Staff see their own visits in full, and a short summary of everyone's visits to a place: who went, when, and what came of it. Branch heads also see their branch's visits, to verify them. The Regional Office sees everything. Phone numbers and photos stay with the people who need them.</p>`)}
+    <p>Staff see their own visits in full, and a short summary of everyone's visits to a place: who went, when, and what came of it. Branch heads also see their branch staff's visits in My Staff Visits, to keep track. The Regional Office sees everything. Phone numbers and photos stay with the people who need them.</p>`)}
 
   ${ch('IV', 'Reading the lists', 'Five colours', `
     <div class="ab-legend">
       <div><i class="ab-dot over"></i><b>Overdue</b><span>The date has passed and nobody has logged it.</span></div>
       <div><i class="ab-dot due"></i><b>Coming up</b><span>Due today or later.</span></div>
-      <div><i class="ab-dot vis"></i><b>Visited</b><span>Logged, waiting for the branch head's check.</span></div>
+      <div><i class="ab-dot vis"></i><b>Visited</b><span>Report submitted, waiting for the Regional Office's check.</span></div>
       <div><i class="ab-dot ver"></i><b>Verified</b><span>Checked and locked. Ask the admin to unverify if it needs a correction.</span></div>
       <div><i class="ab-dot hold"></i><b>On hold</b><span>You asked to reassign or remove it. It is locked and off your overdue list until the admin decides.</span></div>
     </div>

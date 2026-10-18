@@ -164,12 +164,6 @@ function qVisit(id) {
     joint: all('joint').filter(j => j.visit_id === id) };
 }
 const qMyPendingFor = visitId => all('requests').find(r => r.visit_id === visitId && r.status === 'pending' && S.who.me && r.raised_by === S.who.me.emp_id);
-/* Branch head: visits by my branch's staff waiting for me */
-function qBranchVerify() {
-  const me = S.who.me;
-  return all('visits').filter(v => v.visitor_branch === me.branch_code && v.status === 'submitted' && v.visitor !== me.emp_id)
-    .map(withEntity).sort((a, b) => (a.visited_at || '').localeCompare(b.visited_at || ''));
-}
 /* Everything the dashboard needs */
 function qDash() {
   return { at: DB.at, asg: openAsg().map(a => ({ ...a, entity: get('entities', a.entity_id) || { id: a.entity_id, name: '—', type: '' } })),

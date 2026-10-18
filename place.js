@@ -231,11 +231,11 @@ async function openVisit(id) {
   const body = openSheet('Visit', '');
   const got = qVisit(id);
   if (!got) { body.innerHTML = emptyState(ICON.pin, 'Not available', 'This visit is no longer there. Pull down to refresh.'); return; }
-  if (!got.v.f) { body.innerHTML = emptyState(ICON.lock, 'Details not shared', 'Only the visitor, their branch head and the Regional Office see the full visit.'); return; }
+  if (!got.v.f) { body.innerHTML = emptyState(ICON.lock, 'Details not shared', 'Only the visitor, their branch head and the Regional Office see the full report.'); return; }
   const { v, photos, joint } = got, ent = v.entity;
   const me = S.who.me || {};
   const mine = v.visitor === me.emp_id, sub = v.status === 'submitted', adm = S.who.admin;
-  const canVerify = sub && (adm || (me.is_branch_head && v.visitor_branch === me.branch_code && !mine));
+  const canVerify = sub && adm;   // only the Regional Office verifies
   $('.sheet-head h3').textContent = `${ent.name} · Visit ${v.visit_no}`;
   const urls = photos.length ? await signedUrls(photos.map(p => p.path)).catch(() => ({})) : {};
   const pr = qMyPendingFor(v.id), pending = pr ? ({ delete_visit: 'delete', unverify: 'unverify' }[pr.kind] || '') : '';

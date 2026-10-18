@@ -23,7 +23,7 @@ jobs:
       - name: Record the run
         run: |
           date -u +%Y-%m-%dT%H:%MZ > .github/keepalive.txt
-          git config user.name 'daura-keepalive'
+          git config user.name 'tasc-connect-keepalive'
           git config user.email 'actions@users.noreply.github.com'
           git add .github/keepalive.txt
           git commit -m 'keep-alive' || true

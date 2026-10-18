@@ -6,7 +6,7 @@ What goes where:
 
 | Piece | Where | Holds |
 |---|---|---|
-| The app | GitHub Pages (public repo `daura`) | Code only. **No staff data, ever.** |
+| The app | GitHub Pages (public repo `tasc-connect`) | Code only. **No staff data, ever.** |
 | Data, sign-in, photos | Supabase (Mumbai) | Staff list, places, visits, photos |
 | "Sign in with Google" | Google Cloud project **TASC Connect** (new, separate from Hazri) | Nothing, it only proves the Gmail |
 
@@ -52,7 +52,7 @@ Both files are safe to run again if something stops halfway.
    - TASC Connect only asks for name and email, so Google needs no review, there's no 100-user limit, and no weekly re-login.
 4. **Clients** (left menu) → **Create client**:
    - Application type: **Web application**. Name: `TASC Connect web`.
-   - **Authorised JavaScript origins** → **Add URI** → enter exactly `https://nkotwar.github.io` (no `/daura`, no slash at the end).
+   - **Authorised JavaScript origins** → **Add URI** → enter exactly `https://nkotwar.github.io` (no `/tasc-connect`, no slash at the end).
    - Leave **Authorised redirect URIs** empty → **Create**.
 5. Copy both the **Client ID** (ends in `.apps.googleusercontent.com`) and the **Client secret**.
 
@@ -85,7 +85,7 @@ These three are meant to be public. What protects the data is the database's acc
 
 ## 5. Put the app on GitHub Pages
 
-1. On github.com, click **+ → New repository**. Name it `daura`, set it to **Public** → **Create repository**.
+1. On github.com, click **+ → New repository**. Name it `tasc-connect`, set it to **Public** → **Create repository**.
 2. Click **uploading an existing file** and drag in everything from the TASC Connect folder **except** the private SQL file:
    - `index.html`, `styles.css`, `config.js` (filled in), `version.js`
    - `core.js`, `auth.js`, `visits.js`, `profile.js`, `admin.js`, `main.js`, `sw.js`
@@ -93,7 +93,7 @@ These three are meant to be public. What protects the data is the database's acc
    - `privacy.html`
    - the `sql` folder (only `01_schema.sql` is in it), `README.md`, `SETUP.md`, `.gitignore`
    - Then **Commit changes**.
-3. **Settings → Pages**: Source **Deploy from a branch**, Branch **main**, folder **/ (root)** → **Save**. After a minute or two the app is live at **`https://nkotwar.github.io/daura/`**.
+3. **Settings → Pages**: Source **Deploy from a branch**, Branch **main**, folder **/ (root)** → **Save**. After a minute or two the app is live at **`https://nkotwar.github.io/tasc-connect/`**.
 
 ## 6. Keep-alive (stops the free database from pausing)
 
@@ -109,7 +109,7 @@ The job also writes the date into `.github/keepalive.txt`. That keeps the repo a
 
 ## 7. On your phone
 
-1. Open `https://nkotwar.github.io/daura/` in Chrome → menu ⋮ → **Add to Home screen / Install app**.
+1. Open `https://nkotwar.github.io/tasc-connect/` in Chrome → menu ⋮ → **Add to Home screen / Install app**.
 2. Open it from the home-screen icon → **Sign in with Google** → choose **nkotwar@gmail.com**. You land straight in, as admin.
 3. **Admin → People**: everyone is listed, with who has signed up. Tap anyone for **Call** or **Invite on WhatsApp**.
 
@@ -167,6 +167,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 28 | **Sign in with your name** (name + date of birth, Google optional; admin and viewer need Google). Admin can allot a new place while adding it, and **Allot / Reallot or change date** on any place, with a note for staff | Turn on **Allow anonymous sign-ins**, then run `sql/10_update_v28.sql` |
 | 29 | Name sign-in shows the exact reason if it fails | None |
 | 30 | Pull down works on the sign-in screens too (reloads with the latest app) | None |
+| 31 | Branch heads get **My Staff Visits** (their own and branch staff's allotments and reports, pills, person chips with overdue counts, Call / WhatsApp). Only the admin verifies; branch-head Verify removed. App moves to `nkotwar.github.io/tasc-connect/` | Run `sql/11_update_v31.sql`; rename the GitHub repo to `tasc-connect` |
 
 ---
 
