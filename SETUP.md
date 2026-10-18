@@ -168,6 +168,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 29 | Name sign-in shows the exact reason if it fails | None |
 | 30 | Pull down works on the sign-in screens too (reloads with the latest app) | None |
 | 31 | Branch heads get **My Staff Visits** (their own and branch staff's allotments and reports, pills, person chips with overdue counts, Call / WhatsApp). Only the admin verifies; branch-head Verify removed. App moves to `nkotwar.github.io/tasc-connect/` | Run `sql/11_update_v31.sql`; rename the GitHub repo to `tasc-connect` |
+| 32 | New logo: bigger T A S C letters, bank emblem in the centre. Sign-in page footer reads "Central Bank of India · via PDUDAIRO". About guide rewritten for all users (sign-in, roles, Places tags) | None |
 
 ---
 

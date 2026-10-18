@@ -32,7 +32,7 @@ function screenSignIn(note) {
       <div class="gbtn" id="gbtn"><div class="spin" style="margin:6px auto"></div></div>
       <p class="hint" style="text-align:center">Google sign-in works on any phone. Admins and viewers use Google.</p>`
       : `<div class="note warn" style="margin-top:20px"><b>Almost there.</b> Fill in <span class="mono">config.js</span> with your Supabase and Google details (SETUP.md, step 4).</div>`}
-    <div class="foot"><img src="cbi-emblem.png" alt="">Built by Nitin Kotwar (139535), via PDUDAIRO</div>`;
+    <div class="foot"><img src="cbi-emblem.png" alt="">Central Bank of India · via PDUDAIRO</div>`;
   if (configured) {
     mountGoogleButton();
     $('#byname').onclick = async () => {
