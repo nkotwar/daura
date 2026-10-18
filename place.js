@@ -26,7 +26,7 @@ async function drawPlaces(el) {
   let list;
   try { list = await loadEntities(); } catch (e) { el.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
   const { sets, rows } = placeSets(list);
-  const lateBy = new Map(); rows.forEach(r => { if (r.st === 'overdue') lateBy.set(r.a.entity.id, Math.max(lateBy.get(r.a.entity.id) || 0, r.late)); });
+  const info = placeInfo(rows);
   let f = S.cache.placeF || 'all'; if (f !== 'all' && !sets[f]) f = 'all';
   const count = k => k === 'all' ? list.length : sets[k].size;
   el.innerHTML = `<div class="row" style="margin-bottom:10px"><div class="search grow">${ICON.search}<input class="input" id="eq" type="search" placeholder="Search places" value="${esc(S.cache.placeQ || '')}" autocomplete="off"></div></div>
@@ -36,13 +36,10 @@ async function drawPlaces(el) {
   const draw = () => {
     const t = $('#eq').value.trim().toLowerCase(); S.cache.placeQ = t;
     let rs = list.filter(e => (f === 'all' || sets[f].has(e.id)) && (!t || (e.name + ' ' + (e.area || '') + ' ' + e.type + ' ' + (e.address || '')).toLowerCase().includes(t)));
-    if (f === 'overdue') rs.sort((a, b) => (lateBy.get(b.id) || 0) - (lateBy.get(a.id) || 0));
+    if (f === 'overdue') rs.sort((a, b) => (info.get(b.id)?.late || 0) - (info.get(a.id)?.late || 0));
     const more = rs.length > 150 ? rs.length - 150 : 0; rs = rs.slice(0, 150);
-    const tag = e => lateBy.has(e.id) ? `<span class="badge bad">${lateBy.get(e.id)} d late</span>`
-      : e.closure ? `<span class="badge ${e.closure === 'account_opened' ? 'ok' : ''}">${closureLabel(e.closure)}</span>`
-      : sets.verified.has(e.id) ? '<span class="badge ok">Verified</span>' : sets.visited.has(e.id) ? '<span class="badge acc">Visited</span>' : '';
     $('#el').innerHTML = rs.length ? rs.map(e => `<button class="item" data-e="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div>
-        <div class="s">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}</div></div>${tag(e)}<span class="chev">${ICON.chev}</span></button>`).join('')
+        <div class="s">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}</div>${placeLine(e, info.get(e.id))}</div>${placeBadge(e, info.get(e.id))}</button>`).join('')
         + (more ? `<div class="item" style="cursor:default"><span class="hint">and ${more} more. Search to narrow.</span></div>` : '')
       : emptyState(ICON.search, t ? 'No place by that name' : 'Nothing here', t ? 'Check the spelling, or add it as a new place with the button below.' : 'No places in this group right now.');
   };
@@ -51,6 +48,49 @@ async function drawPlaces(el) {
   $$('[data-pf]', el).forEach(b => b.onclick = () => { S.cache.placeF = b.dataset.pf; drawPlaces(el); });
   $('#el').onclick = ev => { const b = ev.target.closest('[data-e]'); if (b) openPlace(list.find(e => e.id === b.dataset.e)); };
   $('#addp').onclick = () => openNewPlace($('#eq').value.trim());
+}
+
+/* What each place's row says: who it's with and where it stands */
+function placeInfo(rows) {
+  const m = new Map(), today = todayISO();
+  rows.forEach(r => {
+    const id = r.a.entity.id, c = m.get(id) || { asg: [] };
+    c.asg.push(r);
+    if (r.st === 'overdue') c.late = Math.max(c.late || 0, r.late);
+    m.set(id, c);
+  });
+  const byEnt = new Map();
+  all('visits').forEach(v => { if (!byEnt.has(v.entity_id)) byEnt.set(v.entity_id, []); byEnt.get(v.entity_id).push(v); });
+  byEnt.forEach((vs, id) => {
+    vs.sort((a, b) => a.visit_no - b.visit_no);
+    const c = m.get(id) || { asg: [] }; c.visits = vs; c.last = vs[vs.length - 1]; m.set(id, c);
+  });
+  m.forEach(c => {
+    const open = c.asg.filter(r => !r.v);
+    c.due = open.filter(r => r.st === 'notdue').map(r => r.a.scheduled_on).filter(Boolean).sort()[0];
+    c.today = c.due === today;
+    c.hold = c.asg.some(r => r.st === 'hold');
+  });
+  return m;
+}
+function placeBadge(e, c) {
+  if (e.closure) return `<span class="badge ${e.closure === 'account_opened' ? 'ok' : ''}">${closureLabel(e.closure)}</span>`;
+  if (!c || (!c.asg.length && !c.last)) return '<span class="badge">Not allotted</span>';
+  if (c.late) return `<span class="badge bad">Overdue · ${c.late} d</span>`;
+  if (c.hold) return '<span class="badge warn">🔒 On hold</span>';
+  if (c.last) return c.last.status === 'verified' ? `<span class="badge ok">Verified${c.visits.length > 1 ? ' · V' + c.last.visit_no : ''}</span>`
+    : `<span class="badge acc">Visited${c.visits.length > 1 ? ' · V' + c.last.visit_no : ''}</span>`;
+  if (c.today) return '<span class="badge warn">Due today</span>';
+  if (c.due) return `<span class="badge">Due ${fmtDate(c.due)}</span>`;
+  return '<span class="badge">Allotted</span>';
+}
+function placeLine(e, c) {
+  if (!c) return '';
+  const bits = [];
+  const who = [...new Set(c.asg.map(r => r.a.assignee))].map(x => cleanName(personName(x)));
+  if (who.length) bits.push('Allotted to ' + esc(who.slice(0, 2).join(', ')) + (who.length > 2 ? ` +${who.length - 2}` : ''));
+  if (c.last) bits.push(`Last visit ${fmtDate(c.last.visited_at)}${who.length && !c.asg.some(r => r.a.assignee === c.last.visitor) ? ' by ' + esc(cleanName(personName(c.last.visitor))) : ''}`);
+  return bits.length ? `<div class="s">${bits.join(' · ')}</div>` : '';
 }
 
 /* From the Dashboard: open Visits → Places with a pill picked */
