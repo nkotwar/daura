@@ -3,26 +3,65 @@
 /* Places come from the phone's copy. */
 async function loadEntities() { return all('entities').sort((a, b) => a.name.localeCompare(b.name)); }
 
-/* ───────── Places tab segment ───────── */
+/* ───────── Places tab segment ─────────
+   Pills filter by allotment state (same rules as the Dashboard): Allotted · Overdue · Visited · Verified · Accounts opened · Not allotted. */
+const PLACE_PILLS = [['all', 'All'], ['allotted', 'Allotted'], ['overdue', 'Overdue'], ['visited', 'Visited'], ['verified', 'Verified'], ['opened', 'Accounts opened'], ['free', 'Not allotted']];
+
+function placeSets(list) {
+  const rows = dashModel(qDash(), {}).rows;
+  const s = { allotted: new Set(), overdue: new Set(), visited: new Set(), verified: new Set() };
+  rows.forEach(r => {
+    const id = r.a.entity.id; s.allotted.add(id);
+    if (r.st === 'overdue') s.overdue.add(id);
+    if (r.v) s.visited.add(id);
+    if (r.st === 'verified') s.verified.add(id);
+  });
+  s.opened = new Set(list.filter(e => e.closure === 'account_opened').map(e => e.id));
+  s.free = new Set(list.filter(e => !s.allotted.has(e.id)).map(e => e.id));
+  return { sets: s, rows };
+}
+
 async function drawPlaces(el) {
   if (!el.children.length || el.querySelector(':scope > .spin')) el.innerHTML = '<div class="spin"></div>';
   let list;
   try { list = await loadEntities(); } catch (e) { el.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
-  el.innerHTML = `<div class="row" style="margin-bottom:10px"><div class="search grow">${ICON.search}<input class="input" id="eq" type="search" placeholder="Search ${list.length} places" value="${esc(S.cache.placeQ || '')}" autocomplete="off"></div></div>
-    <button class="btn soft block" id="addp">+ Add a new place</button><div class="spacer"></div>
-    <div class="list" id="el"></div>`;
+  const { sets, rows } = placeSets(list);
+  const lateBy = new Map(); rows.forEach(r => { if (r.st === 'overdue') lateBy.set(r.a.entity.id, Math.max(lateBy.get(r.a.entity.id) || 0, r.late)); });
+  let f = S.cache.placeF || 'all'; if (f !== 'all' && !sets[f]) f = 'all';
+  const count = k => k === 'all' ? list.length : sets[k].size;
+  el.innerHTML = `<div class="row" style="margin-bottom:10px"><div class="search grow">${ICON.search}<input class="input" id="eq" type="search" placeholder="Search places" value="${esc(S.cache.placeQ || '')}" autocomplete="off"></div></div>
+    <div class="chips wrap" id="pf">${PLACE_PILLS.map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''} ${k === 'overdue' && count(k) && f !== k ? 'hot' : ''}" data-pf="${k}">${l}<b>${count(k)}</b></button>`).join('')}</div>
+    <div class="list" id="el"></div>
+    <div class="spacer"></div><button class="btn soft block" id="addp">+ Add a new place</button>`;
   const draw = () => {
     const t = $('#eq').value.trim().toLowerCase(); S.cache.placeQ = t;
-    const rows = list.filter(e => !t || (e.name + ' ' + (e.area || '') + ' ' + e.type + ' ' + (e.address || '')).toLowerCase().includes(t)).slice(0, 60);
-    $('#el').innerHTML = rows.length ? rows.map(e => `<button class="item" data-e="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div>
-        <div class="s">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}</div></div>
-        ${e.closure ? `<span class="badge ${e.closure === 'account_opened' ? 'ok' : ''}">${closureLabel(e.closure)}</span>` : ''}<span class="chev">${ICON.chev}</span></button>`).join('')
-      : emptyState(ICON.search, 'No place by that name', 'Check the spelling, or add it as a new place with the button above.');
+    let rs = list.filter(e => (f === 'all' || sets[f].has(e.id)) && (!t || (e.name + ' ' + (e.area || '') + ' ' + e.type + ' ' + (e.address || '')).toLowerCase().includes(t)));
+    if (f === 'overdue') rs.sort((a, b) => (lateBy.get(b.id) || 0) - (lateBy.get(a.id) || 0));
+    const more = rs.length > 150 ? rs.length - 150 : 0; rs = rs.slice(0, 150);
+    const tag = e => lateBy.has(e.id) ? `<span class="badge bad">${lateBy.get(e.id)} d late</span>`
+      : e.closure ? `<span class="badge ${e.closure === 'account_opened' ? 'ok' : ''}">${closureLabel(e.closure)}</span>`
+      : sets.verified.has(e.id) ? '<span class="badge ok">Verified</span>' : sets.visited.has(e.id) ? '<span class="badge acc">Visited</span>' : '';
+    $('#el').innerHTML = rs.length ? rs.map(e => `<button class="item" data-e="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div>
+        <div class="s">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}</div></div>${tag(e)}<span class="chev">${ICON.chev}</span></button>`).join('')
+        + (more ? `<div class="item" style="cursor:default"><span class="hint">and ${more} more. Search to narrow.</span></div>` : '')
+      : emptyState(ICON.search, t ? 'No place by that name' : 'Nothing here', t ? 'Check the spelling, or add it as a new place with the button below.' : 'No places in this group right now.');
   };
   draw();
   $('#eq').oninput = draw;
+  $$('[data-pf]', el).forEach(b => b.onclick = () => { S.cache.placeF = b.dataset.pf; drawPlaces(el); });
   $('#el').onclick = ev => { const b = ev.target.closest('[data-e]'); if (b) openPlace(list.find(e => e.id === b.dataset.e)); };
   $('#addp').onclick = () => openNewPlace($('#eq').value.trim());
+}
+
+/* From the Dashboard: open Visits → Places with a pill picked */
+function goPlaces(pill) {
+  S.cache.placeF = pill; S.cache.placeQ = ''; S.cache.vseg = 'places';
+  show('visits');
+  setTimeout(() => {
+    const host = $('#v-host'); if (!host || !host._pager) return;
+    host._pager.go('places');
+    const pane = $('section[data-pane="places"]', host); if (pane) drawPlaces(pane);
+  }, 50);
 }
 
 async function openNewPlace(prefill = '') {

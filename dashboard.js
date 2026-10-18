@@ -121,12 +121,12 @@ async function viewDashboard(force = false) {
     <div class="hint" style="margin:-4px 0 10px">Synced ${syncedAgo()}. Allotment figures follow the allotted officer's branch; business figures follow the visitor's branch.</div>
 
     <div class="stats s6">
-      ${tile(N.total, 'Allotted')}
-      ${tile(M.visited, `Visited · ${pct(M.visited, N.total)}%`, 'ok')}
-      ${tile(N.overdue, 'Overdue', N.overdue ? 'bad' : '')}
-      ${tile(N.verified, `Verified · ${pct(N.verified, M.visited)}%`)}
-      ${tile(M.followDue.length, 'Follow-ups due', M.followDue.length ? 'warn' : '')}
-      ${tile(M.biz.opened, 'Accounts opened', 'ok')}
+      ${tile(N.total, 'Allotted', '', 'allotted')}
+      ${tile(M.visited, `Visited · ${pct(M.visited, N.total)}%`, 'ok', 'visited')}
+      ${tile(N.overdue, 'Overdue', N.overdue ? 'bad' : '', 'overdue')}
+      ${tile(N.verified, `Verified · ${pct(N.verified, M.visited)}%`, '', 'verified')}
+      ${M.followDue.length ? `<div class="stat warn tap" role="button" onclick="document.getElementById('fu-card').scrollIntoView({behavior:'smooth',block:'start'})"><b>${M.followDue.length}</b><span>Follow-ups due</span></div>` : tile(0, 'Follow-ups due')}
+      ${tile(M.biz.opened, 'Accounts opened', 'ok', 'opened')}
     </div>
 
     <div class="card"><h3>Progress</h3>
@@ -175,7 +175,7 @@ async function viewDashboard(force = false) {
       <div class="list" id="offl">${offRows(M)}</div>
     </div>
 
-    ${M.followDue.length ? `<div class="card"><h3>Follow-ups due</h3><div class="list">${M.followDue.slice(0, 30).map(v => `<button class="item" data-v="${v.id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
+    ${M.followDue.length ? `<div class="card" id="fu-card" style="scroll-margin-top:70px"><h3>Follow-ups due</h3><div class="list">${M.followDue.slice(0, 30).map(v => `<button class="item" data-v="${v.id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
       <div class="s">${esc(personName(v.visitor))} · ${esc(v.next_step || 'Follow-up')}</div></div><span class="badge ${v.followup_on < M.today ? 'bad' : 'warn'}">${fmtDate(v.followup_on)}</span></button>`).join('')}</div></div>` : ''}
 
     <div class="card"><h3>Latest photos</h3><div class="pgrid" id="gal"><div class="hint" style="grid-column:1/-1">Loading…</div></div>
@@ -205,7 +205,7 @@ async function viewDashboard(force = false) {
 }
 
 const shortDay = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-const tile = (v, l, cls = '') => `<div class="stat ${cls}"><b>${typeof v === 'number' ? v.toLocaleString('en-IN') : v}</b><span>${l}</span></div>`;
+const tile = (v, l, cls = '', go = '') => `<div class="stat ${cls} ${go && S.who.me ? 'tap' : ''}" ${go && S.who.me ? `data-goplace="${go}" role="button"` : ''}><b>${typeof v === 'number' ? v.toLocaleString('en-IN') : v}</b><span>${l}</span></div>`;
 const minibar = p => `<div class="mini" title="${p}% visited"><i style="width:${p}%"></i></div><span class="mono hint">${p}%</span>`;
 function stackBar(parts, total) {
   if (!total) return '<p class="hint">No allotments for these filters.</p>';

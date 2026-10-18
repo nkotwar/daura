@@ -157,6 +157,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 21 | Admin: **Upload udairo.js** moved to People (preview opens in a panel); photo storage moved to Profile; Staff list section removed | None |
 | 22 | Admin → People: **Due** pill lists staff with allotted visits still pending, with pending and overdue counts | None |
 | 23 | Admin notifications removed | Run `sql/09_remove_notifications.sql` once |
+| 24 | People opens on **Due**, count cards removed. Places has pills: All, Allotted, Overdue, Visited, Verified, Accounts opened, Not allotted. Dashboard tiles open the matching Places pill; Follow-ups due jumps to its list | None |
 
 ---
 

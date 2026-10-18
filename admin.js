@@ -106,7 +106,7 @@ async function admPeople(fresh = true) {
   const all = S.cache.people;
   const act = all.filter(p => p.active);
   const linked = act.filter(p => p.logins.length);
-  const f = S.cache.peopleFilter || 'all';
+  const f = S.cache.peopleFilter || 'due';
   const due = pendingByEmp();
   const filters = {
     due: ['Due', act.filter(p => due.has(p.emp_id)).sort((a, b) => due.get(b.emp_id).late - due.get(a.emp_id).late || due.get(b.emp_id).n - due.get(a.emp_id).n)],
@@ -122,11 +122,6 @@ async function admPeople(fresh = true) {
     <div class="row" style="margin-bottom:10px"><div class="grow hint" style="margin:0">${act.length} staff in ${new Set(act.map(p => p.branch_code)).size} branches</div>
       <button class="btn small soft" id="ub">${ICON.upload} Upload udairo.js</button>
       <input type="file" id="uf" accept=".js,text/javascript,application/javascript" hidden></div>
-    <div class="stats">
-      <div class="stat ok"><b>${linked.length}</b><span>Signed up</span></div>
-      <div class="stat"><b>${act.length - linked.length}</b><span>Not yet</span></div>
-      <div class="stat"><b>${act.filter(p => p.is_branch_head && p.logins.length).length}/${act.filter(p => p.is_branch_head).length}</b><span>Branch heads in</span></div>
-    </div>
     <div class="search">${ICON.search}<input class="input" id="pq" type="search" placeholder="Name, emp ID, branch or Gmail" value="${esc(S.cache.peopleQ || '')}"></div>
     <div class="chips">${Object.entries(filters).filter(([k, v]) => k === 'all' || v[1].length || k === f).map(([k, v]) =>
       `<button class="chip ${f === k ? 'on' : ''}" data-pf="${k}">${v[0]}<b>${v[1].length}</b></button>`).join('')}</div>

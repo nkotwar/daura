@@ -109,6 +109,7 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .stat b{display:block;font-family:var(--mono);font-size:22px;font-weight:600;line-height:1.1}
 .stat span{font-size:12px;color:var(--muted)}
+.stat.tap{cursor:pointer;position:relative}.stat.tap::after{content:'›';position:absolute;right:10px;top:8px;color:var(--muted);font-size:16px}.stat.tap:active{transform:scale(.98)}
 .stat.bad b{color:var(--bad)} .stat.ok b{color:var(--ok)} .stat.warn b{color:var(--warn)}
 
 .meter{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;margin:8px 0 4px}

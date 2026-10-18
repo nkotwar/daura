@@ -39,6 +39,8 @@ const ICON = {
 /* Friendly empty state that fills the section: icon in a soft circle, a title, a line of help, optional buttons. */
 const emptyState = (icon, title, text, actions = '') =>
   `<div class="empty big"><div class="eic">${icon}</div><h4>${title}</h4><p>${text}</p>${actions ? `<div class="eact">${actions}</div>` : ''}</div>`;
+/* Dashboard tiles that open Visits → Places with a pill picked: data-goplace="<pill>" */
+document.addEventListener('click', e => { const b = e.target.closest('[data-goplace]'); if (b) goPlaces(b.dataset.goplace); });
 /* Buttons inside a section that jump to another section of the same tab: data-goto="<pane id>" */
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-goto]'); if (!b) return;
