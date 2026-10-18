@@ -183,7 +183,7 @@ textarea.input{resize:vertical;min-height:44px}
 .seg-scroll button{flex:1 0 auto;padding:8px 10px}
 
 /* Dashboard (v4) */
-.dfilters{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+.dfilters{display:flex;gap:8px;margin:-16px -16px 10px;padding:10px 16px;align-items:center;position:sticky;top:var(--toph,60px);z-index:9;background:var(--bg);box-shadow:0 1px 0 var(--line)}
 .dsel{min-height:38px;padding:7px 10px;font-size:13.5px;flex:1;min-width:0}
 .stats.s6{grid-template-columns:repeat(3,1fr)}
 .stat b{overflow-wrap:anywhere}

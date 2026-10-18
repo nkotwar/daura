@@ -174,6 +174,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 35 | Dashboard: branches A–Z with Udaipur RO first (also in image and Excel); order is By branch, Progress, By type, Officers; Officers pill "Overdue / due today"; tapping a branch opens its panel instead of redrawing. Date of birth is typed as DD-MM-YYYY | None |
 | 36 | Dashboard "Waiting for verification" shows only for the admin | None |
 | 37 | Summary image footer reads "TASC Connect · Central Bank of India · via PDUDAIRO" | None |
+| 38 | Date of birth: type it or tap the calendar button. Dashboard Type / Branch filters stay pinned under the header while scrolling | None |
 
 ---
 

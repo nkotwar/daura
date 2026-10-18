@@ -207,3 +207,10 @@ function renderTabs(show) {
   $('#tabs-inner').innerHTML = TABS.filter(t => t.show()).map(t =>
     `<button class="tab ${S.tab === t.id ? 'on' : ''}" data-tab="${t.id}"><span class="ic">${t.icon}</span>${t.label}</button>`).join('');
 }
+
+/* Height of the sticky header, so things pinned below it (Dashboard filters) sit right under it */
+(function () {
+  const set = () => { const t = document.getElementById('top'); if (t) document.documentElement.style.setProperty('--toph', t.getBoundingClientRect().height + 'px'); };
+  if (window.ResizeObserver) { const t = document.getElementById('top'); if (t) new ResizeObserver(set).observe(t); }
+  addEventListener('resize', set); setTimeout(set, 0);
+})();

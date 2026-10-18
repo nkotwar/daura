@@ -180,8 +180,12 @@ async function screenPickName(who) {
     <div id="pdob" hidden>
       <div class="card" style="margin-top:12px"><div id="pwho"></div>
         <label class="f" for="dob">Your date of birth</label>
-        <input class="input mono" type="text" id="dob" inputmode="numeric" autocomplete="bday" placeholder="DD-MM-YYYY" maxlength="10" style="font-size:20px;letter-spacing:.06em">
-        <p class="hint" style="margin:6px 0 0">Type it as day, month, year, e.g. 05-08-1990</p>
+        <div class="row" style="gap:8px;position:relative">
+          <input class="input mono grow" type="text" id="dob" inputmode="numeric" autocomplete="bday" placeholder="DD-MM-YYYY" maxlength="10" style="font-size:20px;letter-spacing:.06em">
+          <button type="button" class="btn ghost" id="dobcal" aria-label="Pick from calendar" style="min-height:48px;padding:0 14px">${ICON.calendar}</button>
+          <input type="date" id="dobpick" max="${todayISO()}" tabindex="-1" aria-hidden="true" style="position:absolute;right:0;bottom:0;width:48px;height:48px;opacity:0;pointer-events:none">
+        </div>
+        <p class="hint" style="margin:6px 0 0">Type it as day, month, year (e.g. 05-08-1990), or tap the calendar.</p>
         <div class="spacer"></div>
         <button class="btn block" id="check">Check</button>
         <p class="hint" id="perr" style="color:var(--bad)"></p>
@@ -213,6 +217,13 @@ async function screenPickName(who) {
   };
   $('#repick').onclick = () => { $('#plist').hidden = false; $('.search').hidden = false; $('#pdob').hidden = true; picked = null; };
   bindDobInput($('#dob'));
+  // calendar: the browser's own date picker, kept in step with the typed box
+  $('#dobcal').onclick = () => {
+    const pk = $('#dobpick'), iso = parseDob($('#dob').value);
+    pk.value = iso || '1985-01-01';
+    try { pk.showPicker(); } catch (e) { pk.style.pointerEvents = 'auto'; pk.focus(); pk.click(); }
+  };
+  $('#dobpick').onchange = e => { const v = e.target.value; if (v) { const [y, m, d] = v.split('-'); $('#dob').value = `${d}-${m}-${y}`; $('#perr').textContent = ''; } };
   $('#dob').onkeydown = e => { if (e.key === 'Enter') $('#check').click(); };
   $('#check').onclick = async () => {
     const dob = parseDob($('#dob').value);
