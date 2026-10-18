@@ -8,7 +8,7 @@ async function viewProfile() {
         <span class="badge acc">${roleLabel(me.role)}</span>${me.is_branch_head ? '<span class="badge ok">Branch head: sees branch staff visits</span>' : ''}
         ${S.who.admin && me.role !== 'admin' ? '<span class="badge acc">Admin</span>' : ''}</div>`
       : `<div class="card"><h3>Admin</h3><p class="muted">Signed in as ${esc(S.who.gmail)} without a staff profile.</p></div>`}
-    ${S.who.needs_google ? `<div class="note warn" style="margin-bottom:12px">You signed in with your name, so you have staff access here. For ${me && me.role === 'viewer' ? 'the Dashboard' : 'Admin and the Dashboard'}, sign out and sign in with Google.</div>` : ''}
+    ${S.who.needs_google ? `<div class="note warn" style="margin-bottom:12px">You signed in with your name, so you have staff access here. For the Admin tab and Dashboard, sign out and sign in with Google.</div>` : ''}
     ${me ? `<h2>Phones and Gmails that open your profile</h2><div id="logins"><div class="spin" style="margin:16px auto"></div></div>
     <p class="hint">If you see one here that isn't yours, remove it and tell the Regional Office.</p>` : ''}
     ${S.who.admin ? `<h2>Photo storage</h2><div id="storebox"><div class="spin" style="margin:16px auto"></div></div>` : ''}

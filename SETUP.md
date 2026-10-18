@@ -117,8 +117,8 @@ The job also writes the date into `.github/keepalive.txt`. That keeps the repo a
 
 Share the link. Staff have two ways in:
 
-- **Sign in with your name** (the main button): they pick their name, enter their date of birth, see their Emp ID, branch and the last 4 digits of their mobile, and confirm. That phone stays signed in until they sign out or clear the browser. This gives **field staff** access only: admins and viewers who sign in this way get the staff view.
-- **Sign in with Google**: works as before. If their Gmail is in udairo.js, they just confirm; otherwise name + date of birth once. Admin and Viewer need Google.
+- **Sign in with your name** (the main button): they pick their name, enter their date of birth, see their Emp ID, branch and the last 4 digits of their mobile, and confirm. That phone stays signed in until they sign out or clear the browser. Staff and viewers get their full access this way. Admins who sign in this way get only the staff view.
+- **Sign in with Google**: works as before. If their Gmail is in udairo.js, they just confirm; otherwise name + date of birth once. Only the admin needs Google.
 
 Every new phone or Gmail shows in **Admin → Activity** and in the person's panel, where you can **Remove** it. You can change roles (Field staff / Viewer / Admin), or **Block** someone, which cuts their access on every phone at once. Staff can see and remove the phones and Gmails linked to their own profile.
 
@@ -169,6 +169,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 30 | Pull down works on the sign-in screens too (reloads with the latest app) | None |
 | 31 | Branch heads get **My Staff Visits** (their own and branch staff's allotments and reports, pills, person chips with overdue counts, Call / WhatsApp). Only the admin verifies; branch-head Verify removed. App moves to `nkotwar.github.io/tasc-connect/` | Run `sql/11_update_v31.sql`; rename the GitHub repo to `tasc-connect` |
 | 32 | New logo: bigger T A S C letters, bank emblem in the centre. Sign-in page footer reads "Central Bank of India · via PDUDAIRO". About guide rewritten for all users (sign-in, roles, Places tags) | None |
+| 33 | Viewers can sign in with their name (only the admin needs Google). Excel export redone: Summary, Branches, Officers, Allotments and full Visit reports sheets, with styled headers, filters, totals, ₹ and date formats and status colours | Run `sql/12_update_v33.sql` |
 
 ---
 

@@ -15,7 +15,7 @@ function aboutHTML() {
 
   ${ch('II', 'Getting in', 'Your name, or Google', `
     <div class="ab-chain"><span>Sign in with your name<br><small>name + date of birth</small></span><i>or</i><span>Sign in with Google<br><small>any phone</small></span></div>
-    <p>With your name, you confirm your Emp ID, branch and the last digits of your mobile once, and that phone stays signed in. Google works the same on any phone. Admins and viewers use Google for their extra screens.</p>
+    <p>With your name, you confirm your Emp ID, branch and the last digits of your mobile once, and that phone stays signed in. Google works the same on any phone. Admins use Google for the Admin tab.</p>
     <p>Every phone and Gmail that opens your profile is listed in <b>Profile</b>. Remove any you don't recognise, and tell the Regional Office.</p>`)}
 
   ${ch('III', 'A visit, start to finish', 'Six steps', `
@@ -33,7 +33,7 @@ function aboutHTML() {
     <div class="ab-legend">
       <div><i class="ab-dot ver"></i><b>Staff</b><span>Their own allotments and reports in full, and a short summary of everyone's visits to a place: who went, when, what came of it.</span></div>
       <div><i class="ab-dot vis"></i><b>Branch heads</b><span>All of that, plus <b>My Staff Visits</b>: their branch staff's allotments and reports in one place, with overdue counts and a Call or WhatsApp button.</span></div>
-      <div><i class="ab-dot due"></i><b>Viewers</b><span>The <b>Dashboard</b> for the whole region: progress, overdue, business, branches and officers, with the summary image and Excel. They can look, not change.</span></div>
+      <div><i class="ab-dot due"></i><b>Viewers</b><span>Everything staff can do, plus the <b>Dashboard</b> for the whole region: progress, overdue, business, branches and officers, every visit report, the summary image and Excel. They can look, not change anyone else's work.</span></div>
       <div><i class="ab-dot over"></i><b>Admin</b><span>The Regional Office: allots places, verifies reports, answers requests and manages who can sign in.</span></div>
     </div>
     <p>Phone numbers and photos stay with the people who need them.</p>`)}

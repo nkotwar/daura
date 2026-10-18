@@ -1,5 +1,5 @@
 /* TASC Connect · sign-in: pick your name + date of birth (this phone gets its own sign-in), or Google.
-   The database decides which employee a phone or Gmail belongs to. Admin and Viewer need Google. */
+   The database decides which employee a phone or Gmail belongs to. Only the admin needs Google. */
 
 let googleNonce = null;
 
@@ -30,7 +30,7 @@ function screenSignIn(note) {
       <p class="hint" style="text-align:center">Pick your name and enter your date of birth. This phone stays signed in.</p>
       <div class="orline"><span>or</span></div>
       <div class="gbtn" id="gbtn"><div class="spin" style="margin:6px auto"></div></div>
-      <p class="hint" style="text-align:center">Google sign-in works on any phone. Admins and viewers use Google.</p>`
+      <p class="hint" style="text-align:center">Google sign-in works on any phone. Admins use Google.</p>`
       : `<div class="note warn" style="margin-top:20px"><b>Almost there.</b> Fill in <span class="mono">config.js</span> with your Supabase and Google details (SETUP.md, step 4).</div>`}
     <div class="foot"><img src="cbi-emblem.png" alt="">Central Bank of India · via PDUDAIRO</div>`;
   if (configured) {

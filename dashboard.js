@@ -342,37 +342,112 @@ function loadScript(src) {
 }
 async function exportExcel(M, D) {
   toast('Preparing Excel…', 2000);
-  try { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'); } catch (e) { toast(e.message); return; }
+  // xlsx-js-style: SheetJS with cell styles (bold headers, colours, number formats)
+  try { await loadScript('https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js'); } catch (e) { toast(e.message); return; }
+  const f = S.cache.dashF || {};
+  const BLUE = '146CC0', LINE = 'D5DCE6';
+  const border = { top: { style: 'thin', color: { rgb: LINE } }, bottom: { style: 'thin', color: { rgb: LINE } }, left: { style: 'thin', color: { rgb: LINE } }, right: { style: 'thin', color: { rgb: LINE } } };
+  const FMT = { date: 'dd-mmm-yyyy', dt: 'dd-mmm-yyyy hh:mm', inr: '[>=10000000]"₹"##\\,##\\,##\\,##0;[>=100000]"₹"##\\,##\\,##0;"₹"##,##0', int: '0', pct: '0%', dec: '0.0' };
+  const TINT = { 'Overdue': 'FDE2E4', 'Verified': 'DDF3E4', 'Visited (not verified)': 'FFF1D6', 'Submitted': 'FFF1D6', 'On hold (request pending)': 'E9ECF1', 'Account opened': 'DDF3E4' };
+  // dates as Excel serial numbers in local (IST) wall time, so they show exactly as in the app
+  const d = x => { if (!x) return ''; const t = new Date(x.length === 10 ? x + 'T00:00:00' : x); if (isNaN(t)) return '';
+    return (Date.UTC(t.getFullYear(), t.getMonth(), t.getDate(), t.getHours(), t.getMinutes(), t.getSeconds()) - Date.UTC(1899, 11, 30)) / 864e5; };
   const st = { verified: 'Verified', submitted: 'Visited (not verified)', overdue: 'Overdue', notdue: 'Not due yet', hold: 'On hold (request pending)' };
-  const d = s => s ? new Date(s.length === 10 ? s + 'T00:00:00' : s) : null;
-  const visits = M.vis.slice().sort((a, b) => a.visited_at.localeCompare(b.visited_at)).map(v => ({
-    'Place': v.entity.name, 'Type': v.entity.type, 'Area': v.entity.area || '', 'Visit no': v.visit_no,
-    'Visited by': personName(v.visitor), 'Emp ID': v.visitor, 'Branch': M.bname.get(v.visitor_branch) || '',
-    'Visited at': d(v.visited_at), 'Logged at': d(v.logged_at), 'Allotted': v.assignment_id ? 'Yes' : 'No',
-    'Person met': v.person_name || '', 'Designation': v.person_designation || '', 'Mobile': v.person_mobile || '',
-    'Banks with': { us: 'Our bank', other: 'Other bank', none: 'None / not known' }[v.banking_with] || '', 'Other bank': v.other_bank || '',
-    'Headcount': v.headcount ?? '', 'Headcount of': v.headcount_kind || '', 'Potential (₹)': v.potential_rs != null ? +v.potential_rs : '',
-    'Products': (v.products || []).join(', '), 'Outcome': v.outcome || '', 'Remarks': v.remarks || '', 'Next step': v.next_step || '',
-    'Follow-up on': d(v.followup_on), 'Closure': closureLabel(v.closure), 'Accounts': (v.account_numbers || []).join(', '),
-    'Mobilised (₹)': v.mobilised_rs != null ? +v.mobilised_rs : '', 'Status': v.status === 'verified' ? 'Verified' : 'Submitted',
-    'Verified at': d(v.verified_at), 'Verified by': v.verified_at ? (v.verified_by ? personName(v.verified_by) : 'Admin') : ''
-  }));
-  const allot = M.rows.slice().sort((a, b) => (a.a.scheduled_on || '').localeCompare(b.a.scheduled_on || '')).map(r => ({
-    'Place': r.a.entity.name, 'Type': r.a.entity.type, 'Area': r.a.entity.area || '', 'Officer': personName(r.a.assignee), 'Emp ID': r.a.assignee,
-    'Officer branch': (S.dir.get(r.a.assignee) || {}).branch || '', 'Scheduled': d(r.a.scheduled_on), 'Status': st[r.st],
-    'Visited on': r.v ? d(r.v.visited_at) : null, 'Visited by': r.v ? personName(r.v.visitor) : '', 'Delay (days)': r.delay != null ? r.delay : (r.st === 'overdue' ? r.late : ''),
-    'Outcome': r.v ? (r.v.outcome || '') : '', 'Closure': r.v ? closureLabel(r.v.closure) : ''
-  }));
-  const offs = M.byOff.map(o => ({ 'Officer': o.name, 'Emp ID': o.emp, 'Branch': o.branch, 'Allotted': o.total, 'Visited': o.visited, 'Overdue': o.overdue,
-    'Own visits': o.own, 'Avg delay (days)': o.delayN ? +(o.delaySum / o.delayN).toFixed(1) : '', 'Done %': pct(o.visited, o.total) }));
-  const brs = M.byBranch.map(b => ({ 'Branch': b.name, 'Allotted': b.total, 'Visited': b.visited, 'Verified': b.verified, 'Overdue': b.overdue, [`Due ${shortDay(M.tmr)}`]: b.tmr, 'Done %': pct(b.visited, b.total) }));
+  const filt = [f.camp && (all('campaigns').find(c => c.id === f.camp) || {}).name, f.type, f.branch && M.bname.get(f.branch)].filter(Boolean).join(' · ') || 'All campaigns, types and branches';
+
+  /* One styled table. cols: [{ h: header, w: width, t: 'text'|'int'|'inr'|'date'|'dt'|'pct'|'dec', tint: true }] ; rows: arrays */
+  const table = (title, cols, rows, totals) => {
+    const aoa = [[title], [`Generated ${fmtDateTime(new Date().toISOString())} · ${filt}`], [], cols.map(c => c.h), ...rows];
+    if (totals) aoa.push(totals);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const H = 3, last = aoa.length - 1;
+    ws['!cols'] = cols.map(c => ({ wch: c.w }));
+    ws['!rows'] = [{ hpt: 24 }, { hpt: 16 }, { hpt: 6 }, { hpt: 32 }];
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(0, cols.length - 1) } }, { s: { r: 1, c: 0 }, e: { r: 1, c: Math.max(0, cols.length - 1) } }];
+    if (rows.length) ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: H, c: 0 }, e: { r: H + rows.length, c: cols.length - 1 } }) };
+    const cell = (r, c) => { const a = XLSX.utils.encode_cell({ r, c }); if (!ws[a]) ws[a] = { t: 's', v: '' }; return ws[a]; };
+    cell(0, 0).s = { font: { bold: true, sz: 14, color: { rgb: BLUE } } };
+    cell(1, 0).s = { font: { sz: 9, color: { rgb: '5B6B80' } } };
+    cols.forEach((c, j) => { cell(H, j).s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: BLUE } }, alignment: { vertical: 'center', horizontal: 'center', wrapText: true }, border }; });
+    for (let r = H + 1; r <= last; r++) {
+      const isTot = totals && r === last;
+      cols.forEach((c, j) => {
+        const x = cell(r, j);
+        const fmt = FMT[c.t];
+        const tint = c.tint && TINT[x.v];
+        x.s = { border, alignment: { vertical: 'top', wrapText: c.t === 'text' && c.w >= 24, horizontal: ['int', 'inr', 'pct', 'dec'].includes(c.t) ? 'right' : (['date', 'dt'].includes(c.t) ? 'center' : 'left') },
+          ...(fmt && x.t !== 's' ? { numFmt: fmt } : {}),
+          ...(tint ? { fill: { fgColor: { rgb: tint } } } : (r % 2 === 0 ? { fill: { fgColor: { rgb: 'F7F9FC' } } } : {})),
+          ...(isTot ? { font: { bold: true }, fill: { fgColor: { rgb: 'E8EEF6' } } } : {}) };
+        if (fmt && x.t === 'n') x.z = fmt;
+        if (x.t === 's' && x.v === '') delete x.v;
+      });
+    }
+    return ws;
+  };
+  const sum = (rows, j) => rows.reduce((s, r) => s + (+r[j] || 0), 0);
+
+  // Summary
+  const N = M.n;
+  const sumRows = [
+    ['Allotted', N.total, ''], ['Visited', M.visited, N.total ? M.visited / N.total : 0], ['  of which verified', N.verified, M.visited ? N.verified / M.visited : 0],
+    ['  of which awaiting verification', N.submitted, M.visited ? N.submitted / M.visited : 0], ['Overdue', N.overdue, N.total ? N.overdue / N.total : 0],
+    ['Not due yet', N.notdue, ''], ['On hold (request pending)', N.hold, ''], ['Follow-ups due', M.followDue.length, ''],
+    ['Places visited (any visit)', M.biz.places, ''], ['Accounts opened (places)', M.biz.opened, ''], ['Account numbers recorded', M.biz.accounts, ''],
+    ['Rejected', M.biz.rejected, ''], ['Not feasible', M.biz.notFeasible, ''], ['Business potential', M.biz.potential, ''], ['Business mobilised', M.biz.mobilised, '']
+  ];
+  const wsSum = table('TASC Connect · Summary', [{ h: 'Measure', w: 34, t: 'text' }, { h: 'Number', w: 16, t: 'int' }, { h: 'Share', w: 10, t: 'pct' }], sumRows);
+  ['Business potential', 'Business mobilised'].forEach(lbl => { const r = 4 + sumRows.findIndex(x => x[0] === lbl); const a = XLSX.utils.encode_cell({ r, c: 1 }); ws_fmt(wsSum[a], FMT.inr); });
+  function ws_fmt(c, z) { if (c) { c.z = z; c.s = { ...(c.s || {}), numFmt: z }; } }
+
+  // Branches
+  const brRows = M.byBranch.map(b => [b.name, b.total, b.visited, b.verified, b.overdue, b.tmr, b.total ? b.visited / b.total : 0]);
+  const wsBr = table('Branch-wise progress', [{ h: 'Branch', w: 26, t: 'text' }, { h: 'Allotted', w: 10, t: 'int' }, { h: 'Visited', w: 10, t: 'int' }, { h: 'Verified', w: 10, t: 'int' },
+    { h: 'Overdue', w: 10, t: 'int' }, { h: `Due ${shortDay(M.tmr)}`, w: 11, t: 'int' }, { h: 'Done %', w: 9, t: 'pct' }], brRows,
+    ['Total', sum(brRows, 1), sum(brRows, 2), sum(brRows, 3), sum(brRows, 4), sum(brRows, 5), sum(brRows, 1) ? sum(brRows, 2) / sum(brRows, 1) : 0]);
+
+  // Officers
+  const ofRows = M.byOff.map(o => [o.name, o.emp, o.branch, o.total, o.visited, o.overdue, o.own, o.delayN ? +(o.delaySum / o.delayN).toFixed(1) : '', o.total ? o.visited / o.total : 0]);
+  const wsOf = table('Officer-wise progress', [{ h: 'Officer', w: 28, t: 'text' }, { h: 'Emp ID', w: 9, t: 'int' }, { h: 'Branch', w: 20, t: 'text' }, { h: 'Allotted', w: 10, t: 'int' },
+    { h: 'Visited', w: 10, t: 'int' }, { h: 'Overdue', w: 10, t: 'int' }, { h: 'Own visits (not allotted)', w: 13, t: 'int' }, { h: 'Avg delay (days)', w: 11, t: 'dec' }, { h: 'Done %', w: 9, t: 'pct' }], ofRows,
+    ['Total', '', '', sum(ofRows, 3), sum(ofRows, 4), sum(ofRows, 5), sum(ofRows, 6), '', sum(ofRows, 3) ? sum(ofRows, 4) / sum(ofRows, 3) : 0]);
+
+  // Allotments
+  const alRows = M.rows.slice().sort((a, b) => (a.a.scheduled_on || '').localeCompare(b.a.scheduled_on || '')).map(r => [
+    r.a.entity.name, r.a.entity.type, r.a.entity.area || '', personName(r.a.assignee), r.a.assignee, (S.dir.get(r.a.assignee) || {}).branch || '',
+    d(r.a.scheduled_on), st[r.st], r.v ? d(r.v.visited_at) : '', r.v ? personName(r.v.visitor) : '', r.delay != null ? r.delay : (r.st === 'overdue' ? r.late : ''),
+    r.v ? (r.v.outcome || '') : '', r.v ? closureLabel(r.v.closure) || '' : '', r.a.note || '']);
+  const wsAl = table('Allotments', [{ h: 'Place', w: 40, t: 'text' }, { h: 'Type', w: 20, t: 'text' }, { h: 'Area', w: 16, t: 'text' }, { h: 'Officer', w: 26, t: 'text' },
+    { h: 'Emp ID', w: 9, t: 'int' }, { h: 'Officer branch', w: 18, t: 'text' }, { h: 'Visit by', w: 13, t: 'date' }, { h: 'Status', w: 22, t: 'text', tint: true },
+    { h: 'Visited on', w: 17, t: 'dt' }, { h: 'Visited by', w: 24, t: 'text' }, { h: 'Delay (days)', w: 10, t: 'int' }, { h: 'Outcome', w: 18, t: 'text' },
+    { h: 'Closure', w: 16, t: 'text', tint: true }, { h: 'Note for staff', w: 30, t: 'text' }], alRows);
+
+  // Visit reports (full details)
+  const jointOf = id => all('joint').filter(j => j.visit_id === id).map(j => personName(j.emp_id)).join(', ');
+  const photosOf = id => all('photos').filter(p => p.visit_id === id).length;
+  const viRows = M.vis.slice().sort((a, b) => a.visited_at.localeCompare(b.visited_at)).map(v => [
+    v.entity.name, v.entity.type, v.entity.area || '', v.visit_no, personName(v.visitor), v.visitor, M.bname.get(v.visitor_branch) || '',
+    d(v.visited_at), d(v.logged_at), v.assignment_id ? 'Yes' : 'No', jointOf(v.id),
+    v.person_name || '', v.person_designation || '', v.person_mobile || '',
+    { us: 'Our bank', other: 'Other bank', none: 'None / not known' }[v.banking_with] || '', v.other_bank || '',
+    v.potential_rs != null ? +v.potential_rs : '', (v.products || []).join(', '), v.outcome || '', v.remarks || '', v.next_step || '',
+    d(v.followup_on) || '', closureLabel(v.closure) || '', (v.account_numbers || []).join(', '), v.mobilised_rs != null ? +v.mobilised_rs : '',
+    photosOf(v.id), v.lat != null ? `${(+v.lat).toFixed(5)}, ${(+v.lng).toFixed(5)}` : '',
+    v.status === 'verified' ? 'Verified' : 'Submitted', d(v.verified_at) || '', v.verified_at ? (v.verified_by ? personName(v.verified_by) : 'Admin') : '']);
+  const wsVi = table('Visit reports', [{ h: 'Place', w: 40, t: 'text' }, { h: 'Type', w: 20, t: 'text' }, { h: 'Area', w: 16, t: 'text' }, { h: 'Visit no', w: 8, t: 'int' },
+    { h: 'Visited by', w: 26, t: 'text' }, { h: 'Emp ID', w: 9, t: 'int' }, { h: 'Branch', w: 18, t: 'text' }, { h: 'Visited at', w: 17, t: 'dt' }, { h: 'Submitted at', w: 17, t: 'dt' },
+    { h: 'Allotted', w: 9, t: 'text' }, { h: 'Joint visit with', w: 24, t: 'text' }, { h: 'Person met', w: 22, t: 'text' }, { h: 'Designation', w: 18, t: 'text' },
+    { h: 'Mobile', w: 13, t: 'text' }, { h: 'Banks with', w: 14, t: 'text' }, { h: 'Other bank', w: 16, t: 'text' }, { h: 'Potential', w: 14, t: 'inr' },
+    { h: 'Products', w: 30, t: 'text' }, { h: 'Outcome', w: 18, t: 'text' }, { h: 'Remarks', w: 40, t: 'text' }, { h: 'Next step', w: 30, t: 'text' },
+    { h: 'Follow-up on', w: 13, t: 'date' }, { h: 'Closure', w: 16, t: 'text', tint: true }, { h: 'Account numbers', w: 22, t: 'text' }, { h: 'Mobilised', w: 14, t: 'inr' },
+    { h: 'Photos', w: 8, t: 'int' }, { h: 'Location (lat, long)', w: 22, t: 'text' }, { h: 'Status', w: 12, t: 'text', tint: true }, { h: 'Verified at', w: 17, t: 'dt' }, { h: 'Verified by', w: 22, t: 'text' }], viRows);
+
   const wb = XLSX.utils.book_new();
-  const add = (rows, name, widths) => { const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ '': 'No data' }], { cellDates: true, dateNF: 'dd-mmm-yyyy hh:mm' });
-    ws['!cols'] = widths.map(w => ({ wch: w })); XLSX.utils.book_append_sheet(wb, ws, name); };
-  add(allot, 'Allotments', [40, 20, 16, 26, 9, 18, 14, 20, 14, 11, 18, 14]);
-  add(visits, 'Visits', [40, 20, 16, 8, 26, 9, 18, 18, 18, 9, 22, 18, 12, 14, 16, 10, 12, 13, 40, 18, 40, 30, 13, 15, 22, 14, 11, 18, 22]);
-  add(offs, 'Officers', [28, 9, 20, 9, 9, 9, 10, 14, 8]);
-  add(brs, 'Branches', [26, 9, 9, 9, 9, 11, 8]);
+  XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+  XLSX.utils.book_append_sheet(wb, wsBr, 'Branches');
+  XLSX.utils.book_append_sheet(wb, wsOf, 'Officers');
+  XLSX.utils.book_append_sheet(wb, wsAl, 'Allotments');
+  XLSX.utils.book_append_sheet(wb, wsVi, 'Visit reports');
   XLSX.writeFile(wb, `TASC-Connect-${todayISO()}.xlsx`);
   toast('Excel downloaded');
 }
