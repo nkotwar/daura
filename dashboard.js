@@ -42,6 +42,10 @@ function dashModel(D, f) {
     return { a, v: back ? null : v, back: back ? v : null, by: ov ? ov.visitor : null, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, delay: v && !back && a.scheduled_on ? daysBetween(a.scheduled_on, localDay(v.visited_at)) : null };
   });
   const vis = D.vis.filter(okV);
+  // follow-ups (latest visit's follow-up date on an open place) count as pending work for the person
+  const fuRows = f.camp ? [] : qFollowups().filter(v => (!f.type || v.entity.type === f.type) && (!f.branch || staff(v.visitor).branch_code === f.branch))
+    .map(v => { const st = v.followup_on < today ? 'overdue' : 'notdue';
+      return { a: { id: 'fu:' + v.id, entity: v.entity, assignee: v.visitor, scheduled_on: v.followup_on }, fu: v, st, late: st === 'overdue' ? daysBetween(v.followup_on, today) : 0 }; });
   const n = { total: rows.length, verified: 0, submitted: 0, overdue: 0, notdue: 0, hold: 0 };
   rows.forEach(r => n[r.st]++);
   const visited = n.verified + n.submitted;
@@ -83,12 +87,13 @@ function dashModel(D, f) {
   rows.forEach(r => { const o = oo(r.a.assignee); o.total++; if (r.v) o.visited++; if (r.st === 'overdue') { o.overdue++; o.pending.push(r); }
     if (r.st === 'notdue' && r.a.scheduled_on === today) { o.today++; o.dueToday.push(r); } if (r.delay != null) { o.delaySum += Math.max(0, r.delay); o.delayN++; } });
   vis.filter(v => !v.assignment_id).forEach(v => oo(v.visitor).own++);
+  fuRows.forEach(r => { const o = oo(r.a.assignee); if (r.st === 'overdue') { o.overdue++; o.pending.push(r); } else if (r.a.scheduled_on === today) { o.today++; o.dueToday.push(r); } });
   // by type
   const byType = countBy(rows, r => r.a.entity.type).map(([t]) => { const rr = rows.filter(r => r.a.entity.type === t); return { t, total: rr.length, visited: rr.filter(r => r.v).length, overdue: rr.filter(r => r.st === 'overdue').length }; });
   // verification pending (only the admin verifies)
   const waitingV = vis.filter(v => v.status === 'submitted');
   const waitOldest = waitingV.reduce((m, v) => !m || v.logged_at < m ? v.logged_at : m, null);
-  return { today, tmr, rows, vis, n, visited, ageing, delays, onTime, avgDelay, followDue, biz, outcomes, products, banking, otherBanks,
+  return { today, tmr, rows, fuRows, vis, n, visited, ageing, delays, onTime, avgDelay, followDue, biz, outcomes, products, banking, otherBanks,
     byBranch: [...byBranch.values()].sort((a, b) => (b.ro - a.ro) || a.name.localeCompare(b.name)),   // Udaipur RO first, then A–Z
     byOff: [...byOff.values()].sort((a, b) => b.overdue - a.overdue || b.today - a.today || a.name.localeCompare(b.name)),
     byType, waiting: waitingV.length, waitOldest, bname };
@@ -228,7 +233,7 @@ function hbars(pairs, cls = '') {
 const nudgeBtns = (wa, tel) => `${wa ? `<a class="nb wa" href="${wa}" target="_blank" rel="noopener" title="WhatsApp" aria-label="WhatsApp">${ICON.wa}</a>` : ''}${tel ? `<a class="nb" href="${tel}" title="Call" aria-label="Call">${ICON.phone}</a>` : ''}`;
 function overdueMsg(o) {
   const all = [...o.pending, ...(o.dueToday || [])], n = all.length;
-  const list = all.slice(0, 6).map(r => `• ${r.a.entity.name} (${r.st === 'overdue' ? 'due ' + fmtDate(r.a.scheduled_on) : 'due today'})`).join('\n');
+  const list = all.slice(0, 6).map(r => `• ${r.a.entity.name} (${r.fu ? 'follow-up' : 'due'} ${r.st === 'overdue' ? fmtDate(r.a.scheduled_on) : 'today'})`).join('\n');
   return `Dear ${o.name}, ${n} visit${n > 1 ? 's' : ''} allotted to you ${n > 1 ? 'are' : 'is'} pending in TASC Connect:\n${list}${n > 6 ? `\n…and ${n - 6} more` : ''}\nKindly visit and submit the visit report: ${daoraLink()}\n– Regional Office, Udaipur`;
 }
 const offDue = o => o.overdue || o.today;
@@ -257,7 +262,7 @@ function bindOfficers(M, root = document) {
 function openBranch(code) {
   const M = S.cache.dashM; const b = M.byBranch.find(x => x.code === code); if (!b) return;
   const offs = M.byOff.filter(o => (S.dir.get(o.emp) || {}).branch_code === code);
-  const pend = M.rows.filter(r => (S.dir.get(r.a.assignee) || {}).branch_code === code && (r.st === 'overdue' || (r.st === 'notdue' && r.a.scheduled_on <= M.tmr)))
+  const pend = [...M.rows, ...M.fuRows].filter(r => (S.dir.get(r.a.assignee) || {}).branch_code === code && (r.st === 'overdue' || (r.st === 'notdue' && r.a.scheduled_on <= M.tmr)))
     .sort((x, y) => (x.a.scheduled_on || '').localeCompare(y.a.scheduled_on || ''));
   const body = openSheet(b.name, `
     <div class="stats s6" style="margin-bottom:12px">
@@ -267,7 +272,7 @@ function openBranch(code) {
     <h2>Officers</h2><div class="list">${offRows(M, offs) || ''}</div>
     <h2>Pending till ${shortDay(M.tmr)}</h2>
     ${pend.length ? `<div class="list">${pend.map(r => `<button class="item" data-pe="${r.a.entity.id}"><div class="grow"><div class="t">${esc(r.a.entity.name)}</div>
-      <div class="s">${esc(personName(r.a.assignee))} · due ${fmtDate(r.a.scheduled_on)}</div></div>
+      <div class="s">${esc(personName(r.a.assignee))} · ${r.fu ? 'follow-up' : 'due'} ${fmtDate(r.a.scheduled_on)}</div></div>
       <span class="badge ${r.st === 'overdue' ? 'bad' : r.a.scheduled_on === M.today ? 'warn' : ''}">${r.st === 'overdue' ? r.late + ' d delay' : r.a.scheduled_on === M.today ? 'Today' : shortDay(r.a.scheduled_on)}</span></button>`).join('')}</div>`
       : '<p class="hint">Nothing overdue or due soon.</p>'}
     <div class="spacer"></div>
@@ -361,7 +366,7 @@ function pdfReady({ blob, name, text }) {
 async function pendingPdf(M, f, D, withRO) {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   const today = M.today;
-  const pend = M.rows.filter(r => r.st === 'overdue' || (r.st === 'notdue' && r.a.scheduled_on === today));
+  const pend = [...M.rows, ...M.fuRows].filter(r => r.st === 'overdue' || (r.st === 'notdue' && r.a.scheduled_on === today));
   const byB = new Map();
   pend.forEach(r => {
     const p = S.dir.get(r.a.assignee) || {};
@@ -448,7 +453,7 @@ async function pendingPdf(M, f, D, withRO) {
           const late = r.st === 'overdue';
           x.fillStyle = late ? P.bad : P.warn; x.beginPath(); x.arc(PAD + 30, py - 8, 5, 0, Math.PI * 2); x.fill();
           txt(fit(r.a.entity.name, 760, sans(400, 22)), PAD + 46, py, { f: sans(400, 22) });
-          txt((r.back ? 'Sent back · ' : '') + (late ? `${r.late} d delay` : 'Today'), W - PAD - 22, py, { f: mono(600, 21), c: late ? P.bad : P.warn, a: 'right' });
+          txt((r.back ? 'Sent back · ' : r.fu ? 'Follow-up · ' : '') + (late ? `${r.late} d delay` : 'Today'), W - PAD - 22, py, { f: mono(600, 21), c: late ? P.bad : P.warn, a: 'right' });
           py += PROW;
         });
         y += hgt + 10; i += n; first = false;

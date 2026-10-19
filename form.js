@@ -65,8 +65,14 @@ function formHTML(F, no) {
     <label class="f" for="f-out">Outcome</label>
     <select class="input" id="f-out"><option value="">Choose…</option>${outcomes.map(o => `<option ${F.outcome === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
     <label class="f" for="f-rem">Remarks</label><textarea class="input" id="f-rem" rows="3">${esc(F.remarks)}</textarea>
-    <label class="f" for="f-next">Next step</label><input class="input" id="f-next" value="${esc(F.next_step)}">
-    <label class="f" for="f-fu">Follow-up date</label><input class="input" type="date" id="f-fu" value="${esc(F.followup_on)}">
+    <div id="f-fuw">
+      <label class="f" for="f-next">Next step</label><input class="input" id="f-next" value="${esc(F.next_step)}">
+      <label class="f" for="f-fu">Follow-up date <span class="hint">(optional)</span></label>
+      <div class="row" style="gap:8px"><input class="input grow" type="date" id="f-fu" value="${esc(F.followup_on)}">
+        <button type="button" class="btn ghost" id="f-fuclr" style="flex:none;min-height:44px">No follow-up</button></div>
+      <p class="hint" id="f-fuold" hidden>A later visit to this place exists, so this follow-up date no longer counts.</p>
+    </div>
+    <p class="hint" id="f-funo" hidden></p>
   </div>
 
   <div class="fs"><h4>Joint visit with</h4>
@@ -75,8 +81,8 @@ function formHTML(F, no) {
     <div class="list" id="f-jl" hidden></div>
   </div>
 
-  <div class="fs"><h4>Close this place?</h4>
-    <div class="chipwrap" id="f-close">${[['', 'Keep open'], ['account_opened', 'Account opened'], ['rejected', 'Rejected'], ['not_feasible', 'Not feasible']].map(([k, l]) =>
+  <div class="fs"><h4>Lead status?</h4>
+    <div class="chipwrap" id="f-close">${[['', 'Open'], ['account_opened', 'Account opened'], ['rejected', 'Rejected'], ['not_feasible', 'Not feasible']].map(([k, l]) =>
       `<button type="button" class="chip ${F.closure === k ? 'on' : ''}" data-c="${k}">${l}</button>`).join('')}</div>
     <div id="f-ao" ${F.closure === 'account_opened' ? '' : 'hidden'}>
       <label class="f">Account number(s)</label><div id="f-acs"></div>
@@ -85,7 +91,7 @@ function formHTML(F, no) {
       <div class="hint" id="f-mobw"></div>
     </div>
     <div id="f-cnw" ${F.closure ? '' : 'hidden'}><label class="f" for="f-cn">Closure note</label><input class="input" id="f-cn" value="${esc(F.closure_note)}"></div>
-    <p class="hint" id="f-closehint" ${F.closure ? '' : 'hidden'}>A closed place takes no more follow-ups unless the admin reopens it.</p>
+    <p class="hint" id="f-closehint" ${F.closure ? '' : 'hidden'}>This closes the lead: no more follow-ups unless the admin reopens it.</p>
   </div>
 
   <div class="fs"><h4>Photos <span class="hint" id="f-pc"></span></h4>
@@ -161,7 +167,20 @@ function bindForm(body, F) {
     $$('#f-close .chip', body).forEach(x => x.classList.toggle('on', x.dataset.c === F.closure));
     $b('#f-ao').hidden = F.closure !== 'account_opened';
     $b('#f-cnw').hidden = !F.closure; $b('#f-closehint').hidden = !F.closure;
+    fuRule();
   });
+  // follow-up: not for a closed lead or an existing customer; can be cleared; only the latest visit's date counts
+  const fuRule = () => {
+    const out = $b('#f-out').value;
+    const why = F.closure ? `No follow-up: lead status is ${closureLabel(F.closure)}.` : out === 'Already our customer' ? 'No follow-up needed: already our customer.' : '';
+    $b('#f-fuw').hidden = !!why; $b('#f-funo').hidden = !why; $b('#f-funo').textContent = why;
+  };
+  $b('#f-out').addEventListener('change', fuRule);
+  $b('#f-fuclr').onclick = () => { $b('#f-fu').value = ''; toast('Follow-up cleared'); };
+  const later = F.id && visitsOf(F.entity.id).some(x => x.id !== F.id && x.visit_no > no);
+  if (later) $b('#f-fuold').hidden = false;
+  $b('#f-fu').min = (F.visited_at || localDT(new Date().toISOString())).slice(0, 10);
+  fuRule();
 
   // photos
   const count = () => F.photos.length;
@@ -222,6 +241,8 @@ async function saveForm(body, F) {
   if (new Date(when) > new Date(Date.now() + 5 * 60000)) return err('The visit time cannot be in the future.');
   if (mob && mob.length !== 10) return err('Mobile number should be 10 digits.');
   if (!outcome && !F.closure) return err('Please choose an outcome.');
+  const fuDate = $b('#f-fuw').hidden ? '' : $b('#f-fu').value;
+  if (fuDate && when && fuDate < String(when).slice(0, 10)) return err('The follow-up date can\'t be before the visit date.');
   const accs = F.closure === 'account_opened' ? F.account_numbers.map(a => a.trim()).filter(Boolean) : [];
   if (F.closure === 'account_opened' && !accs.length) return err('Please enter the account number opened.');
   const num = id => { const x = $b(id).value; return x === '' ? null : Number(x); };
@@ -233,7 +254,8 @@ async function saveForm(body, F) {
     person_name: $b('#f-pn').value.trim() || null, person_designation: $b('#f-pd').value.trim() || null, person_mobile: mob || null,
     banking_with: F.banking_with || null, other_bank: F.banking_with === 'other' ? ($b('#f-ob').value.trim() || null) : null,
     potential_rs: num('#f-pot'), products: [...F.products], outcome: outcome || null, remarks: $b('#f-rem').value.trim() || null,
-    next_step: $b('#f-next').value.trim() || null, followup_on: $b('#f-fu').value || null,
+    next_step: $b('#f-fuw').hidden ? null : ($b('#f-next').value.trim() || null),
+    followup_on: $b('#f-fuw').hidden ? null : ($b('#f-fu').value || null),
     closure: F.closure || null, closure_note: F.closure ? ($b('#f-cn').value.trim() || null) : null,
     mobilised_rs: F.closure === 'account_opened' ? num('#f-mob') : null, account_numbers: accs
   };

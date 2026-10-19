@@ -170,8 +170,8 @@ async function openPlace(e, assignment) {
   if (!me) action = '';
   else if (!latest) action = `<button class="btn block" id="pl-log">${ICON.pin} Submit Visit Report</button>`;
   else if (latest.closure) action = `<div class="note">Closed: <b>${closureLabel(latest.closure)}</b> (Visit ${latest.visit_no}).${S.who.admin ? ' <button class="linkbtn" id="pl-reopen">Reopen</button>' : ' Ask the admin if it needs reopening.'}</div>`;
-  else if (latest.status === 'verified') action = `<button class="btn block" id="pl-fu">+ Add follow-up · Visit ${latest.visit_no + 1}</button>`;
-  else action = `<div class="note">A follow-up can be added once Visit ${latest.visit_no} is verified.</div>`;
+  else if (latest.status === 'returned') action = `<div class="note bad">Visit ${latest.visit_no} was sent back for changes. Edit and resubmit it before adding a follow-up.</div>`;
+  else action = `${latest.followup_on ? `<div class="note" style="margin-bottom:8px">Follow-up planned for <b>${fmtDate(latest.followup_on)}</b>${latest.next_step ? ': ' + esc(latest.next_step) : ''}</div>` : ''}<button class="btn block" id="pl-fu">+ Add follow-up · Visit ${latest.visit_no + 1}</button>`;
   const myAsg = assignment && assignment.status === 'open' && me && !asgVisited;
   const held = myAsg && S.cache.visits && S.cache.visits.hold && S.cache.visits.hold.get(assignment.id);
   if (held && !latest) action = `<div class="note warn lockednote">${ICON.lock}<div><b>Locked: request pending.</b> You asked to ${held.kind === 'reassign' ? 'reassign' : 'remove'} this visit

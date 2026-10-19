@@ -11,7 +11,7 @@ function aboutHTML() {
 
   ${ch('I', 'The idea', 'Every allotted place, visited and on record', `
     <p class="ab-lede">TASC Connect holds the list of Trusts, Associations, Societies, Clubs and other institutions the Regional Office wants visited, plus any place you add yourself. Each is allotted to someone with a date. You go, submit a visit report with a few photos, and the Regional Office checks it and sees the whole region at a glance.</p>
-    <blockquote>One visit leads to the next. Set a follow-up date and it shows under Follow-ups due in My visits.</blockquote>`)}
+    <blockquote>One visit leads to the next. Set a follow-up date and it joins My visits like an allotment: Upcoming, then Today, then Overdue, until the next visit is reported.</blockquote>`)}
 
   ${ch('II', 'Getting in', 'Your name, or Google', `
     <div class="ab-chain"><span>Sign in with your name<br><small>name + date of birth</small></span><i>or</i><span>Sign in with Google<br><small>any phone</small></span></div>
@@ -25,7 +25,7 @@ function aboutHTML() {
       <li><b>Report</b><span>Submit Visit Report: who you met, their banking, the potential and what came of it.</span></li>
       <li><b>Photograph</b><span>Up to four. Photos taken in TASC Connect are stamped and pin the place on the map.</span></li>
       <li><b>Verify</b><span>The Regional Office checks your report.</span></li>
-      <li><b>Follow up</b><span>Once verified, add Visit 2, 3… or close it: account opened, rejected or not feasible.</span></li>
+      <li><b>Follow up</b><span>Add Visit 2, 3… from the place, or set the lead status: account opened, rejected or not feasible.</span></li>
     </ol>
     <p>Visiting somewhere not on your list? Find it in <b>Places</b>, or add it there.</p>`)}
 
