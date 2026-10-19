@@ -311,3 +311,10 @@ html,body{overscroll-behavior-y:contain}
 
 .orline{display:flex;align-items:center;gap:10px;margin:18px 0 12px;color:var(--muted);font-size:13px}
 .orline::before,.orline::after{content:'';flex:1;height:1px;background:var(--line)}
+
+/* floating "Update ready" chip, just above the tab bar */
+.updfab{position:fixed;right:14px;bottom:calc(78px + env(safe-area-inset-bottom));z-index:11;display:flex;align-items:center;gap:8px;
+  background:var(--surface);color:var(--accent);border:1px solid var(--line);border-radius:999px;padding:8px 14px;font:600 13px var(--sans);
+  box-shadow:0 4px 14px rgba(20,32,51,.14);cursor:pointer;animation:fabin .3s ease-out}
+.updfab .dot{width:8px;height:8px;border-radius:50%;background:var(--brand-red)}
+@keyframes fabin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}

@@ -85,8 +85,20 @@ async function checkForUpdate() {
   try {
     const t = await (await fetch('version.js?t=' + Date.now(), { cache: 'no-store' })).text();
     const v = +(t.match(/APP_VERSION\s*=\s*(\d+)/) || [])[1];
-    if (v && v > APP_VERSION) { S.updateReady = v; if (S.tab === 'profile' && !$('#upd')) viewProfile(); else toast(`TASC Connect ${v} is ready. Profile → Update now.`); }
+    if (v && v > APP_VERSION) { const fresh = S.updateReady !== v; S.updateReady = v; if (S.tab === 'profile' && !$('#upd')) viewProfile(); updateFab(); if (fresh && S.tab !== 'profile') toast(`TASC Connect ${v} is ready`); }
   } catch (e) { /* offline */ }
+}
+/* A small floating "Update ready" chip on every tab except Profile; tapping it opens Profile, where Update now is. */
+function updateFab() {
+  let el = document.getElementById('updfab');
+  const want = S.updateReady && S.who && S.who.state === 'linked' && S.tab !== 'profile' && !$('#tabs').hidden;
+  if (!want) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('button'); el.id = 'updfab'; el.className = 'updfab';
+    el.onclick = () => { show('profile'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<span class="dot"></span>Update ready · v${S.updateReady}`;
 }
 async function applyUpdate() {
   const b = $('#upd'); if (b) { b.disabled = true; b.textContent = 'Updating…'; }

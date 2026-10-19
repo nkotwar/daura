@@ -32,7 +32,7 @@ function show(tab) {
   const fresh = !tv;
   if (fresh) { tv = document.createElement('div'); tv.className = 'tabview'; tv.dataset.tab = tab; main.appendChild(tv); }
   $$(':scope > .tabview', main).forEach(x => { x.hidden = x !== tv; });
-  S.tab = tab; renderTabs(true); remember();
+  S.tab = tab; renderTabs(true); remember(); if (typeof updateFab === 'function') updateFab();
   window.scrollTo(0, fresh ? 0 : (S.scrollAt[tab] || 0));
   VIEWS[tab]();
 }
@@ -56,7 +56,7 @@ async function boot() {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !S.who || S.who.state !== 'linked') return;
   flushOutbox();
-  if (Date.now() - DB.at > SYNC_AGAIN_MS) syncAndRefresh().catch(() => {});
+  if (Date.now() - DB.at > SYNC_AGAIN_MS) { syncAndRefresh().catch(() => {}); checkForUpdate(); }
 });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});

@@ -182,6 +182,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 43 | Dashboard → **Pending visits, staff-wise (PDF)** for admin and viewers: overdue and due-today visits, branch by branch and staff by staff, A4 pages; Udaipur RO left out unless ticked | None |
 | 44 | "late" now reads "delay" everywhere (e.g. 4 d delay). Pending PDF opens a ready panel with an editable message (counts, how to sign in, link), Share, Copy message and Download | None |
 | 45 | Pending PDF and its message no longer mention whether Udaipur RO is included | None |
+| 46 | A small floating **Update ready** chip shows on every tab when a new version is out; tapping it opens Profile. The app also checks for updates when you come back to it | None |
 
 ---
 
