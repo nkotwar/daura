@@ -106,11 +106,11 @@ async function drawMine(el, noFetch) {
   const pills = pill('all', 'All', total) + STAGES.filter(([k]) => !['hold', 'returned'].includes(k) || g[k].length || f === k)
     .map(([k, l]) => pill(k, l, g[k].length, (k === 'overdue' || k === 'returned') && g[k].length && f !== k ? 'hot' : '')).join('');
 
-  // follow-ups due in the next 7 days (shown in All)
-  const soon = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  // follow-ups (shown in All), any date: the latest visit to each place, if it is mine, has a follow-up date and the lead is open
   const latest = new Map();
-  vis.forEach(v => { const c = latest.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latest.set(v.entity_id, v); });
-  const due = [...latest.values()].filter(v => v.followup_on && v.followup_on <= soon && !v.closure).sort((x, y) => x.followup_on.localeCompare(y.followup_on));
+  all('visits').forEach(v => { const c = latest.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latest.set(v.entity_id, v); });
+  const meId = S.who.me.emp_id;
+  const due = [...latest.values()].filter(v => v.visitor === meId && v.followup_on && !v.closure).map(withEntity).sort((x, y) => x.followup_on.localeCompare(y.followup_on));
 
   const list = rows => `<div class="list">${rows.join('')}</div>`;
   let body;
@@ -130,9 +130,10 @@ async function drawMine(el, noFetch) {
         <div class="grow"><div class="t">${esc(w.entityName)}</div><div class="s">${w.error ? `<span style="color:var(--bad)">${esc(w.error)}</span>` : 'Saved on this phone ' + ago(w.savedAt) + '. Sends when online.'}</div></div>
         <button class="btn small ghost" data-wd="${w.id}">Discard</button></div>`).join('')}</div>
       <button class="btn soft block" id="wsend" style="margin-top:8px">Send now</button>` : ''}
-    ${f === 'all' && due.length ? `<h4 class="dh">Follow-ups due · ${due.length}</h4><div class="list">${due.map(v => `<button class="item" data-pe="${v.entity_id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
+    ${f === 'all' && due.length ? `<h4 class="dh">Follow-ups · ${due.length}</h4><div class="list">${due.map(v => `<button class="item" data-pe="${v.entity_id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
         <div class="s">${esc(v.next_step || 'Follow-up')}${v.status !== 'verified' ? ' · Visit ' + v.visit_no + ' awaiting verification' : ''}</div></div>
-        <span class="badge ${v.followup_on < today ? 'bad' : v.followup_on === today ? 'warn' : ''}">${fmtDate(v.followup_on)}</span></button>`).join('')}</div>` : ''}
+        <div style="text-align:right;flex:none"><div class="mono" style="font-size:13px">${fmtDate(v.followup_on)}</div>
+          ${v.followup_on < today ? `<span class="badge bad">${daysBetween(v.followup_on, today)} d delay</span>` : v.followup_on === today ? '<span class="badge warn">Today</span>' : ''}</div></button>`).join('')}</div>` : ''}
     ${body}
     <div class="spacer"></div>
     <p class="hint" style="text-align:center">Visiting somewhere not on your list? <button class="linkbtn" onclick="openNewPlace()">Add the place</button></p>`;
@@ -140,7 +141,7 @@ async function drawMine(el, noFetch) {
   $$('.chip[data-f]', el).forEach(b => b.onclick = () => { S.cache.visitFilter = b.dataset.f; drawMine(el, true); });
   $$('[data-a]', el).forEach(b => b.onclick = () => { const a = S.cache.visits.asg.find(x => x.id === b.dataset.a); openPlace(a.entity, a); });
   $$('[data-v]', el).forEach(b => b.onclick = () => openVisit(b.dataset.v));
-  $$('[data-pe]', el).forEach(b => b.onclick = () => { const v = vis.find(x => x.entity_id === b.dataset.pe); openPlace(v.entity); });
+  $$('[data-pe]', el).forEach(b => b.onclick = () => openPlace(get('entities', b.dataset.pe)));
   $$('[data-wd]', el).forEach(b => b.onclick = async () => {
     if (!await confirmSheet('Discard this saved visit?', 'It has not been sent. Discarding removes it from this phone for good.', 'Discard', true)) return;
     await idb.del(b.dataset.wd); viewVisits();
