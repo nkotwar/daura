@@ -267,7 +267,7 @@ function openBranch(code) {
     <h2>Pending till ${shortDay(M.tmr)}</h2>
     ${pend.length ? `<div class="list">${pend.map(r => `<button class="item" data-pe="${r.a.entity.id}"><div class="grow"><div class="t">${esc(r.a.entity.name)}</div>
       <div class="s">${esc(personName(r.a.assignee))} · due ${fmtDate(r.a.scheduled_on)}</div></div>
-      <span class="badge ${r.st === 'overdue' ? 'bad' : r.a.scheduled_on === M.today ? 'warn' : ''}">${r.st === 'overdue' ? r.late + ' d late' : r.a.scheduled_on === M.today ? 'Today' : shortDay(r.a.scheduled_on)}</span></button>`).join('')}</div>`
+      <span class="badge ${r.st === 'overdue' ? 'bad' : r.a.scheduled_on === M.today ? 'warn' : ''}">${r.st === 'overdue' ? r.late + ' d delay' : r.a.scheduled_on === M.today ? 'Today' : shortDay(r.a.scheduled_on)}</span></button>`).join('')}</div>`
       : '<p class="hint">Nothing overdue or due soon.</p>'}
     <div class="spacer"></div>
     <button class="btn ghost block" id="br-filter">Filter the whole dashboard to ${esc(b.name)}</button>`);
@@ -286,7 +286,7 @@ function openOfficer(emp) {
     <div class="row">${o.overdue && waLink(o.phone, overdueMsg(o)) ? `<a class="btn soft grow" target="_blank" rel="noopener" href="${waLink(o.phone, overdueMsg(o))}">${ICON.wa} Nudge on WhatsApp</a>` : ''}
       ${telLink(o.phone) ? `<a class="btn ghost grow" href="${telLink(o.phone)}">${ICON.phone} Call</a>` : ''}</div>
     <h2>Allotted</h2><div class="list">${rows.map(r => `<button class="item" ${r.v ? `data-v="${r.v.id}"` : `data-e="${r.a.entity.id}"`}><div class="grow"><div class="t">${esc(r.a.entity.name)}</div>
-      <div class="s">Due ${fmtDate(r.a.scheduled_on)}${r.v ? ' · visited ' + fmtDate(r.v.visited_at) + (r.by ? ' by ' + esc(personName(r.by)) : '') + (r.delay > 0 ? ` (${r.delay} d late)` : '') : r.late ? ` · ${r.late} d late` : ''}</div></div>
+      <div class="s">Due ${fmtDate(r.a.scheduled_on)}${r.v ? ' · visited ' + fmtDate(r.v.visited_at) + (r.by ? ' by ' + esc(personName(r.by)) : '') + (r.delay > 0 ? ` (${r.delay} d delay)` : '') : r.late ? ` · ${r.late} d delay` : ''}</div></div>
       <span class="badge ${lbl[r.st][1]}">${lbl[r.st][0]}</span></button>`).join('') || '<div class="empty">None.</div>'}</div>
     ${own.length ? `<h2>Own visits</h2><div class="list">${own.map(v => `<button class="item" data-v="${v.id}"><div class="grow"><div class="t">${esc(v.entity.name)} · V${v.visit_no}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '')}</div></div></button>`).join('')}</div>` : ''}`);
   $$('[data-v]', body).forEach(b => b.onclick = () => openVisit(b.dataset.v));
@@ -323,8 +323,37 @@ function askPendingPdf(M, f, D) {
     <button class="btn block" id="pp-go">Make PDF</button>`);
   $('#pp-go', body).onclick = async () => {
     const b = $('#pp-go', body); b.disabled = true; b.textContent = 'Preparing…';
-    try { await pendingPdf(M, f, D, $('#pp-ro', body).checked); closeSheet(); }
-    catch (e) { toast(errText(e)); b.disabled = false; b.textContent = 'Make PDF'; }
+    let out;
+    try { out = await pendingPdf(M, f, D, $('#pp-ro', body).checked); }
+    catch (e) { toast(errText(e)); b.disabled = false; b.textContent = 'Make PDF'; return; }
+    pdfReady(out);
+  };
+}
+
+/* The PDF is ready: share it (with the message) or download it. Sharing needs a fresh tap, so it gets its own button. */
+function pdfReady({ blob, name, text }) {
+  const body = openSheet('PDF ready', `
+    <p class="muted" style="margin-top:0">${esc(name)} · ${Math.max(1, Math.round(blob.size / 1024))} KB</p>
+    <label class="f">Message sent with it</label>
+    <textarea class="input" id="pr-msg" rows="9" style="font-size:14px">${esc(text)}</textarea>
+    <div class="stack" style="margin-top:12px">
+      <button class="btn block" id="pr-share">${ICON.wa} Share PDF with message</button>
+      <div class="row"><button class="btn ghost grow" id="pr-copy">Copy message</button><button class="btn ghost grow" id="pr-dl">Download PDF</button></div>
+    </div>
+    <p class="hint">If WhatsApp shows only the PDF, long-press in the chat and Paste: the message is copied when you share.</p>`);
+  const msg = () => $('#pr-msg', body).value;
+  const copy = async () => { try { await navigator.clipboard.writeText(msg()); return true; } catch (e) { return false; } };
+  const file = new File([blob], name, { type: 'application/pdf' });
+  const download = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+  $('#pr-copy', body).onclick = async () => toast(await copy() ? 'Message copied' : 'Could not copy. Select the text and copy it.');
+  $('#pr-dl', body).onclick = () => { download(); toast('PDF downloaded'); };
+  $('#pr-share', body).onclick = async () => {
+    const copied = await copy();
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text: msg(), title: 'TASC Connect · Pending visits' }); if (copied) toast('Shared. Message also copied, paste it if it is missing.', 3500); return; }
+      catch (e) { if (e.name === 'AbortError') return; }
+    }
+    download(); toast(copied ? 'PDF downloaded and message copied' : 'PDF downloaded', 3000);
   };
 }
 
@@ -418,7 +447,7 @@ async function pendingPdf(M, f, D, withRO) {
           const late = r.st === 'overdue';
           x.fillStyle = late ? P.bad : P.warn; x.beginPath(); x.arc(PAD + 30, py - 8, 5, 0, Math.PI * 2); x.fill();
           txt(fit(r.a.entity.name, 760, sans(400, 22)), PAD + 46, py, { f: sans(400, 22) });
-          txt(late ? `${r.late} d late` : 'Today', W - PAD - 22, py, { f: mono(600, 21), c: late ? P.bad : P.warn, a: 'right' });
+          txt(late ? `${r.late} d delay` : 'Today', W - PAD - 22, py, { f: mono(600, 21), c: late ? P.bad : P.warn, a: 'right' });
           py += PROW;
         });
         y += hgt + 10; i += n; first = false;
@@ -435,13 +464,12 @@ async function pendingPdf(M, f, D, withRO) {
   pages.forEach((pg, k) => { if (k) pdf.addPage(); pdf.addImage(pg.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297); });
   const blob = pdf.output('blob');
   const name = `TASC-Connect-pending-${todayISO()}.pdf`;
-  const file = new File([blob], name, { type: 'application/pdf' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: 'TASC Connect pending visits' }); return; } catch (e) { if (e.name === 'AbortError') return; }
-  }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  toast('PDF downloaded');
+  const day = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const text = `*TASC Connect · Pending visits* (${day})\nOverdue: ${totLate} · Due today: ${totToday}${withRO ? '' : ' (excluding Udaipur RO)'}\n\n`
+    + `Please complete your pending visits and submit the visit reports.\n`
+    + `To view or submit your visits, open TASC Connect, tap *Sign in with your name*, select your name and enter your date of birth:\n`
+    + `${daoraLink()}\n\n– Regional Office, Udaipur`;
+  return { blob, name, text };
 }
 
 async function summaryImage(M, f, D) {

@@ -85,7 +85,7 @@ function visitRowHTML(r, stage, today, work = S.cache.visits) {
   return `<button class="item" data-a="${a.id}"><div class="grow"><div class="t">${esc(a.entity.name)}</div>
       <div class="s">${who(a.assignee)}${esc(a.entity.type)}${a.entity.area ? ' · ' + esc(a.entity.area) : ''}</div></div>
     <div style="text-align:right;flex:none"><div class="mono" style="font-size:13px">${fmtDate(a.scheduled_on)}</div>
-      ${late ? `<span class="badge bad">${late} d late</span>` : stage === 'today' ? '<span class="badge warn">Today</span>' : ''}</div></button>`;
+      ${late ? `<span class="badge bad">${late} d delay</span>` : stage === 'today' ? '<span class="badge warn">Today</span>' : ''}</div></button>`;
 }
 
 async function drawMine(el, noFetch) {

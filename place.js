@@ -369,7 +369,7 @@ async function loadAssignees(el, entityId) {
   el.innerHTML = `<h4 class="dh">Allotted to</h4><div class="list">${rows.map(r => {
     const st = r.verified ? '<span class="badge ok">Verified</span>' : r.visited ? '<span class="badge acc">Visited</span>'
       : r.on_hold ? '<span class="badge warn">🔒 On hold</span>'
-      : r.scheduled_on && r.scheduled_on < today ? `<span class="badge bad">${daysBetween(r.scheduled_on, today)} d overdue</span>`
+      : r.scheduled_on && r.scheduled_on < today ? `<span class="badge bad">${daysBetween(r.scheduled_on, today)} d delay</span>`
       : r.scheduled_on === today ? '<span class="badge warn">Due today</span>' : `<span class="badge">Due ${r.scheduled_on ? fmtDate(r.scheduled_on) : '—'}</span>`;
     const me = S.who.me && r.emp_id === S.who.me.emp_id;
     return `<${canOpen ? `button class="item" data-st="${r.emp_id}"` : 'div class="item" style="cursor:default"'}>

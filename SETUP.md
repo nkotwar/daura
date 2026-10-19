@@ -180,6 +180,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 41 | Viewers get a read-only **People** section in Visits (Due, signed up, roles; no dates of birth or Gmails). Both People lists have a branch dropdown | Run `sql/14_update_v41.sql` |
 | 42 | Staff who add a place get it allotted to themselves (with a visit date); they can delete a place they added until a visit report exists. **+ Add place** sits beside the search in Places; from My visits it opens the form directly | Run `sql/15_update_v42.sql` |
 | 43 | Dashboard → **Pending visits, staff-wise (PDF)** for admin and viewers: overdue and due-today visits, branch by branch and staff by staff, A4 pages; Udaipur RO left out unless ticked | None |
+| 44 | "late" now reads "delay" everywhere (e.g. 4 d delay). Pending PDF opens a ready panel with an editable message (counts, how to sign in, link), Share, Copy message and Download | None |
 
 ---
 

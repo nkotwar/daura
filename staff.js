@@ -29,7 +29,7 @@ async function loadStaffWork(el, emp) {
   const mobilised = opened.reduce((s, v) => s + (+v.mobilised_rs || 0), 0);
   const visitedN = n('visited') + n('verified');
   const badge = r => ({
-    overdue: `<span class="badge bad">${r.late} d overdue</span>`, hold: `<span class="badge warn">🔒 ${r.h && r.h.kind === 'reassign' ? 'Asked to reassign' : 'Asked to remove'}</span>`, today: '<span class="badge warn">Due today</span>',
+    overdue: `<span class="badge bad">${r.late} d delay</span>`, hold: `<span class="badge warn">🔒 ${r.h && r.h.kind === 'reassign' ? 'Asked to reassign' : 'Asked to remove'}</span>`, today: '<span class="badge warn">Due today</span>',
     upcoming: `<span class="badge">Due ${r.a.scheduled_on ? fmtDate(r.a.scheduled_on) : '—'}</span>`,
     visited: '<span class="badge acc">Visited · not verified</span>', verified: '<span class="badge ok">Verified</span>' }[r.st]);
   const filt = el._f || 'all';
