@@ -183,6 +183,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 44 | "late" now reads "delay" everywhere (e.g. 4 d delay). Pending PDF opens a ready panel with an editable message (counts, how to sign in, link), Share, Copy message and Download | None |
 | 45 | Pending PDF and its message no longer mention whether Udaipur RO is included | None |
 | 46 | A small floating **Update ready** chip shows on every tab when a new version is out; tapping it opens Profile. The app also checks for updates when you come back to it | None |
+| 47 | Test release (no changes) to try the Update ready chip | None |
 
 ---
 
