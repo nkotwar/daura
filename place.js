@@ -78,6 +78,7 @@ function placeBadge(e, c) {
   if (!c || (!c.asg.length && !c.last)) return '<span class="badge">Not allotted</span>';
   if (c.late) return `<span class="badge bad">Overdue · ${c.late} d</span>`;
   if (c.hold) return '<span class="badge warn">🔒 On hold</span>';
+  if (c.last && c.last.status === 'returned') return '<span class="badge bad">Sent back</span>';
   if (c.last) return c.last.status === 'verified' ? `<span class="badge ok">Verified${c.visits.length > 1 ? ' · V' + c.last.visit_no : ''}</span>`
     : `<span class="badge acc">Visited${c.visits.length > 1 ? ' · V' + c.last.visit_no : ''}</span>`;
   if (c.today) return '<span class="badge warn">Due today</span>';
@@ -192,7 +193,7 @@ async function openPlace(e, assignment) {
     ${tl.length ? `<div class="list">${tl.map(v => `<button class="item" ${v.can_open ? `data-v="${v.id}"` : 'style="cursor:default"'}>
         <div class="avatar mono" style="font-size:12px">V${v.visit_no}</div>
         <div class="grow"><div class="t">${esc(cleanName(v.visitor))}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}${v.next_step ? ' · Next: ' + esc(v.next_step) : ''}</div></div>
-        <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Submitted'}</span>${v.can_open ? `<span class="chev">${ICON.chev}</span>` : ''}</button>`).join('')}</div>`
+        <span class="badge ${v.status === 'verified' ? 'ok' : v.status === 'returned' ? 'bad' : 'warn'}">${v.status === 'verified' ? 'Verified' : v.status === 'returned' ? 'Sent back' : 'Submitted'}</span>${v.can_open ? `<span class="chev">${ICON.chev}</span>` : ''}</button>`).join('')}</div>`
       : '<p class="hint">Not visited yet.</p>'}
     ${myAsg && !held ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}
     ${S.who.admin || (me && e.created_by === me.emp_id && !tl.length) ? `<div class="spacer"></div><button class="btn ghost block small" id="pl-del" style="color:var(--bad)">Delete this place</button>`
@@ -272,17 +273,19 @@ async function openVisit(id) {
   if (!got.v.f) { body.innerHTML = emptyState(ICON.lock, 'Details not shared', 'Only the visitor, their branch head and the Regional Office see the full report.'); return; }
   const { v, photos, joint } = got, ent = v.entity;
   const me = S.who.me || {};
-  const mine = v.visitor === me.emp_id, sub = v.status === 'submitted', adm = S.who.admin;
-  const canVerify = sub && adm;   // only the Regional Office verifies
+  const mine = v.visitor === me.emp_id, back = v.status === 'returned', sub = v.status === 'submitted' || back, adm = S.who.admin;
+  const canVerify = v.status === 'submitted' && adm;   // only the Regional Office verifies
   $('.sheet-head h3').textContent = `${ent.name} · Visit ${v.visit_no}`;
   const urls = photos.length ? await signedUrls(photos.map(p => p.path)).catch(() => ({})) : {};
   const pr = qMyPendingFor(v.id), pending = pr ? ({ delete_visit: 'delete', unverify: 'unverify' }[pr.kind] || '') : '';
   const kv = (k, val) => val == null || val === '' || (Array.isArray(val) && !val.length) ? '' : `<dt>${k}</dt><dd>${val}</dd>`;
   body.innerHTML = `
     <div class="row wrap" style="margin-bottom:12px">
-      <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Submitted, not yet verified'}</span>
+      <span class="badge ${v.status === 'verified' ? 'ok' : back ? 'bad' : 'warn'}">${v.status === 'verified' ? 'Verified' : back ? 'Sent back for changes' : 'Submitted, not yet verified'}</span>
       ${v.closure ? `<span class="badge ${v.closure === 'account_opened' ? 'ok' : 'bad'}">${closureLabel(v.closure)}</span>` : ''}
       ${v.assignment_id ? '<span class="badge acc">Allotted</span>' : '<span class="badge">Self-initiated</span>'}</div>
+    ${back ? `<div class="note bad" style="margin-bottom:12px"><b>Sent back by the Regional Office${v.returned_at ? ' · ' + fmtDateTime(v.returned_at) : ''}:</b> ${esc(v.return_note || '')}${mine ? '<br>Make the changes and save: it goes back for checking.' : ''}</div>`
+      : v.resubmitted_at && v.status === 'submitted' ? `<div class="note" style="margin-bottom:12px">Resubmitted ${fmtDateTime(v.resubmitted_at)} after being sent back${v.return_note ? `: "${esc(v.return_note)}"` : ''}.</div>` : ''}
     ${photos.length ? `<div class="pgrid" style="margin-bottom:14px">${photos.map(p => `<a class="pthumb" href="${urls[p.path] || '#'}" target="_blank" rel="noopener"><img src="${urls[p.path] || ''}" alt="Visit photo" loading="lazy"><span class="ptag">${p.source === 'capture' ? 'Live' : 'Uploaded'}</span></a>`).join('')}</div>` : ''}
     <dl class="kv">
       ${kv('Visited by', esc(personName(v.visitor)) + (joint.length ? ' with ' + joint.map(j => esc(personName(j.emp_id))).join(', ') : ''))}
@@ -308,8 +311,8 @@ async function openVisit(id) {
     <div class="stack" style="margin-top:16px" id="v-acts"></div>`;
 
   const acts = [];
-  if (canVerify) acts.push(`<button class="btn block" id="va-ver">✓ Verify this visit</button>`);
-  if (mine && sub) acts.push(`<button class="btn ghost block" id="va-edit">Edit</button>`);
+  if (canVerify) acts.push(`<div class="row"><button class="btn grow" id="va-ver">✓ Verify</button><button class="btn ghost grow" id="va-back" style="color:var(--bad)">↩ Send back</button></div>`);
+  if (mine && sub) acts.push(`<button class="btn ${back ? '' : 'ghost'} block" id="va-edit">${back ? 'Edit and resubmit' : 'Edit'}</button>`);
   if (mine && sub && !v.assignment_id && !v.created_by_admin) acts.push(`<button class="btn danger block" id="va-del">Delete</button>`);
   if (mine && sub && (v.assignment_id || v.created_by_admin) && !pending) acts.push(`<button class="btn ghost block" id="va-rdel">Ask admin to delete</button>`);
   if (mine && !sub && !pending) acts.push(`<button class="btn ghost block" id="va-runv">Ask admin to unverify (to edit)</button>`);
@@ -321,6 +324,21 @@ async function openVisit(id) {
   on('#va-ver', async () => {
     try { await rpc('verify_visit', { p_visit: v.id }); patch('visits', v.id, { status: 'verified', verified_at: new Date().toISOString(), verified_by: me.emp_id || null }); toast('Verified'); refreshCurrent(); }
     catch (e) { toast(errText(e)); } });
+  on('#va-back', async () => {
+    const note = await new Promise(res => {
+      const b2 = openSheet('Send back this report?', `<p class="muted" style="margin-top:0">${esc(personName(v.visitor))} will see your reason, make the changes and resubmit. Until then it counts as pending again.</p>
+        <label class="f" for="sb-n">What needs fixing</label><textarea class="input" id="sb-n" rows="3" placeholder="e.g. Photo unclear; add the contact person's mobile"></textarea>
+        <p class="hint" id="sb-e" style="color:var(--bad)"></p>
+        <div class="row"><button class="btn ghost grow" id="sb-no">Cancel</button><button class="btn grow" id="sb-ok">Send back</button></div>`, () => res(null));
+      $('#sb-no', b2).onclick = () => res(null);
+      $('#sb-ok', b2).onclick = () => { const t = $('#sb-n', b2).value.trim(); if (t.length < 5) { $('#sb-e', b2).textContent = 'Please write what needs fixing.'; return; } res(t); };
+      setTimeout(() => $('#sb-n', b2).focus(), 250);
+    });
+    if (!note) return openVisit(v.id);
+    try { const r = await rpc('admin_return_visit', { p_visit: v.id, p_note: note }); patch('visits', v.id, { status: 'returned', return_note: r.return_note, returned_at: r.returned_at, resubmitted_at: null });
+      toast(`Sent back to ${personName(v.visitor)}`); openVisit(v.id); }
+    catch (e) { toast(errText(e)); openVisit(v.id); }
+  });
   on('#va-unv', async () => {
     try { await rpc('unverify_visit', { p_visit: v.id }); patch('visits', v.id, { status: 'submitted', verified_at: null, verified_by: null }); toast('Unverified: the visitor can edit it again'); openVisit(v.id); }
     catch (e) { toast(errText(e)); } });
@@ -367,7 +385,7 @@ async function loadAssignees(el, entityId) {
   }
   const today = todayISO(), canOpen = S.who.admin;
   el.innerHTML = `<h4 class="dh">Allotted to</h4><div class="list">${rows.map(r => {
-    const st = r.verified ? '<span class="badge ok">Verified</span>' : r.visited ? '<span class="badge acc">Visited</span>'
+    const st = r.verified ? '<span class="badge ok">Verified</span>' : r.returned ? '<span class="badge bad">Sent back</span>' : r.visited ? '<span class="badge acc">Visited</span>'
       : r.on_hold ? '<span class="badge warn">🔒 On hold</span>'
       : r.scheduled_on && r.scheduled_on < today ? `<span class="badge bad">${daysBetween(r.scheduled_on, today)} d delay</span>`
       : r.scheduled_on === today ? '<span class="badge warn">Due today</span>' : `<span class="badge">Due ${r.scheduled_on ? fmtDate(r.scheduled_on) : '—'}</span>`;

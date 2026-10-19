@@ -38,12 +38,13 @@ function aboutHTML() {
     </div>
     <p>Phone numbers and photos stay with the people who need them.</p>`)}
 
-  ${ch('V', 'Reading the lists', 'Five colours', `
+  ${ch('V', 'Reading the lists', 'What the tags mean', `
     <div class="ab-legend">
       <div><i class="ab-dot over"></i><b>Overdue</b><span>The date has passed and no report has been submitted.</span></div>
       <div><i class="ab-dot due"></i><b>Coming up</b><span>Due today or later.</span></div>
       <div><i class="ab-dot vis"></i><b>Visited</b><span>Report submitted, waiting for the Regional Office's check.</span></div>
       <div><i class="ab-dot ver"></i><b>Verified</b><span>Checked and locked. Ask the admin to unverify if it needs a correction.</span></div>
+      <div><i class="ab-dot over"></i><b>Sent back</b><span>The Regional Office asked for changes to your report. Open it, fix what's asked and save: it goes back for checking. Until then it counts as pending.</span></div>
       <div><i class="ab-dot hold"></i><b>On hold</b><span>You asked to reassign or remove it. It is locked and off your overdue list until the admin decides.</span></div>
     </div>
     <p>If a colleague visits a place allotted to you, it counts as visited and shows who went. In Places, every place carries its tag, so you can tell where it stands without opening it.</p>`)}

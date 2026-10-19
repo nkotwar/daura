@@ -153,7 +153,7 @@ function qAssignees(entityId) {
     const fv = vs.find(v => v.assignment_id === a.id) || vs.find(v => v.visitor !== a.assignee);
     const p = S.dir.get(a.assignee) || {};
     return { assignment_id: a.id, emp_id: a.assignee, name: p.name || 'Emp ' + a.assignee, designation: p.designation, branch: p.branch, scheduled_on: a.scheduled_on,
-      visited: !!fv, verified: !!fv && fv.status === 'verified', on_hold: DB.holds.has(a.id),
+      visited: !!fv, verified: !!fv && fv.status === 'verified', returned: !!fv && fv.status === 'returned', on_hold: DB.holds.has(a.id),
       visited_by_emp: fv ? fv.visitor : null, visited_by: fv ? personName(fv.visitor) : null, visited_at: fv ? fv.visited_at : null };
   });
 }

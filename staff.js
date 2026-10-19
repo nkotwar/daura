@@ -17,10 +17,10 @@ async function loadStaffWork(el, emp) {
     const own = byAsg.get(a.id), ov = !own && otherFirst.get(a.entity.id);
     const v = own || ov;
     const h = holdMap.get(a.id);
-    const st = v ? (v.status === 'verified' ? 'verified' : 'visited') : h ? 'hold' : !a.scheduled_on ? 'upcoming' : a.scheduled_on < today ? 'overdue' : a.scheduled_on === today ? 'today' : 'upcoming';
+    const st = v ? (v.status === 'verified' ? 'verified' : v.status === 'returned' ? 'returned' : 'visited') : h ? 'hold' : !a.scheduled_on ? 'upcoming' : a.scheduled_on < today ? 'overdue' : a.scheduled_on === today ? 'today' : 'upcoming';
     return { a, v, h, by: ov ? ov.visitor : null, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, closure: (latest.get(a.entity.id) || {}).closure || a.entity.closure };
   });
-  const order = { overdue: 0, today: 1, hold: 2, upcoming: 3, visited: 4, verified: 5 };
+  const order = { returned: -1, overdue: 0, today: 1, hold: 2, upcoming: 3, visited: 4, verified: 5 };
   rows.sort((x, y) => order[x.st] - order[y.st] || (x.a.scheduled_on || '').localeCompare(y.a.scheduled_on || ''));
   const n = k => rows.filter(r => r.st === k).length;
   const own = vis.filter(v => !v.assignment_id);
@@ -31,6 +31,7 @@ async function loadStaffWork(el, emp) {
   const badge = r => ({
     overdue: `<span class="badge bad">${r.late} d delay</span>`, hold: `<span class="badge warn">🔒 ${r.h && r.h.kind === 'reassign' ? 'Asked to reassign' : 'Asked to remove'}</span>`, today: '<span class="badge warn">Due today</span>',
     upcoming: `<span class="badge">Due ${r.a.scheduled_on ? fmtDate(r.a.scheduled_on) : '—'}</span>`,
+    returned: '<span class="badge bad">Sent back</span>',
     visited: '<span class="badge acc">Visited · not verified</span>', verified: '<span class="badge ok">Verified</span>' }[r.st]);
   const filt = el._f || 'all';
   const pick = f => f === 'all' ? rows : rows.filter(r => f === 'visited' ? (r.st === 'visited' || r.st === 'verified') : f === 'pending' ? (r.st === 'today' || r.st === 'upcoming') : r.st === f);

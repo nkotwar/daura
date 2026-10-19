@@ -27,7 +27,7 @@ async function viewVisits() {
 async function countBadges() {
   try {
     const n = (await idb.all()).length;
-    const od = S.cache.visits ? visitRows().overdue.length : 0;
+    const od = S.cache.visits ? (g => g.overdue.length + g.returned.length)(visitRows()) : 0;
     const el = $('#vn-mine'); if (el) el.textContent = (od ? ` · ${od}` : '') + (n ? ` · ${n}⏳` : '');
   } catch (e) { /* no IndexedDB */ }
   if (S.who.me && S.who.me.is_branch_head) {
@@ -46,7 +46,7 @@ function visitRows(work = S.cache.visits) {
   const { asg, vis, hold, cover } = work;
   const today = todayISO();
   const done = new Set(vis.filter(v => v.assignment_id).map(v => v.assignment_id));
-  const g = { overdue: [], today: [], upcoming: [], hold: [], visited: [], verified: [] };
+  const g = { returned: [], overdue: [], today: [], upcoming: [], hold: [], visited: [], verified: [] };
   for (const a of asg) {
     if (done.has(a.id)) continue;   // shown by its visit report instead
     const cv = cover && cover.get(a.id);
@@ -57,21 +57,21 @@ function visitRows(work = S.cache.visits) {
     else if (a.scheduled_on === today) g.today.push(r);
     else g.upcoming.push(r);
   }
-  for (const v of vis) (v.status === 'verified' ? g.verified : g.visited).push({ k: 'visit', v, at: v.visited_at });
+  for (const v of vis) (v.status === 'verified' ? g.verified : v.status === 'returned' ? g.returned : g.visited).push({ k: 'visit', v, at: v.visited_at });
   g.visited.sort((x, y) => (y.at || '').localeCompare(x.at || ''));
   g.verified.sort((x, y) => (y.at || '').localeCompare(x.at || ''));
   return g;
 }
 
-const STAGES = [['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['hold', '🔒 On hold'], ['visited', 'Visited'], ['verified', 'Visit Verified']];
+const STAGES = [['returned', 'Sent back'], ['overdue', 'Overdue'], ['today', 'Today'], ['upcoming', 'Upcoming'], ['hold', '🔒 On hold'], ['visited', 'Visited'], ['verified', 'Visit Verified']];
 
 function visitRowHTML(r, stage, today, work = S.cache.visits) {
   const who = e => work.team ? `<b>${S.who.me && e === S.who.me.emp_id ? 'You' : esc(cleanName(personName(e)))}</b> · ` : '';
   if (r.k === 'visit') {
     const v = r.v;
     return `<button class="item" data-v="${v.id}"><div class="avatar mono" style="font-size:12px">V${v.visit_no}</div>
-      <div class="grow"><div class="t">${esc(v.entity.name)}</div><div class="s">${who(v.visitor)}${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}</div></div>
-      <span class="badge ${v.status === 'verified' ? 'ok' : 'warn'}">${v.status === 'verified' ? 'Verified' : 'Awaiting check'}</span></button>`;
+      <div class="grow"><div class="t">${esc(v.entity.name)}</div><div class="s">${who(v.visitor)}${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}</div>${v.status === 'returned' && v.return_note ? `<div class="s" style="color:var(--bad)">Sent back: ${esc(v.return_note)}</div>` : ''}</div>
+      <span class="badge ${v.status === 'verified' ? 'ok' : v.status === 'returned' ? 'bad' : 'warn'}">${v.status === 'verified' ? 'Verified' : v.status === 'returned' ? 'Sent back' : 'Awaiting check'}</span></button>`;
   }
   const a = r.a;
   if (r.k === 'cover') return `<button class="item" data-a="${a.id}"><div class="grow"><div class="t">${esc(a.entity.name)}</div>
@@ -103,8 +103,8 @@ async function drawMine(el, noFetch) {
   if (f !== 'all' && !(f && g[f])) f = 'all';
   S.cache.visitFilter = f;
   const pill = (id, label, n, cls) => `<button class="chip ${f === id ? 'on' : ''} ${cls || ''}" data-f="${id}">${label}<b>${n}</b></button>`;
-  const pills = pill('all', 'All', total) + STAGES.filter(([k]) => k !== 'hold' || g.hold.length || f === 'hold')
-    .map(([k, l]) => pill(k, l, g[k].length, k === 'overdue' && g.overdue.length && f !== 'overdue' ? 'hot' : '')).join('');
+  const pills = pill('all', 'All', total) + STAGES.filter(([k]) => !['hold', 'returned'].includes(k) || g[k].length || f === k)
+    .map(([k, l]) => pill(k, l, g[k].length, (k === 'overdue' || k === 'returned') && g[k].length && f !== k ? 'hot' : '')).join('');
 
   // follow-ups due in the next 7 days (shown in All)
   const soon = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
@@ -119,7 +119,7 @@ async function drawMine(el, noFetch) {
       `<h4 class="dh">${l} · ${g[k].length}</h4>${list(g[k].map(r => visitRowHTML(r, k, today)))}`).join('');
   } else {
     const msg = { overdue: ['Nothing overdue', 'Every visit due so far has a report.'], today: ['Nothing due today', 'Check Upcoming for what is next.'],
-      upcoming: ['Nothing coming up', 'No more allotted visits after today.'], hold: ['Nothing on hold', 'Allotments you asked the admin to reassign or remove wait here until the admin decides.'],
+      upcoming: ['Nothing coming up', 'No more allotted visits after today.'], returned: ['Nothing sent back', 'Reports the Regional Office sends back for changes show here.'], hold: ['Nothing on hold', 'Allotments you asked the admin to reassign or remove wait here until the admin decides.'],
       visited: ['Nothing awaiting a check', 'Reports you submit wait here until they are verified.'], verified: ['No verified visits yet', 'Once checked, your visit reports move here.'] }[f];
     body = g[f].length ? list(g[f].map(r => visitRowHTML(r, f, today))) : emptyState(f === 'overdue' ? ICON.shield : ICON.calendar, msg[0], msg[1]);
   }
@@ -188,7 +188,7 @@ async function drawStaffVisits(el, keep) {
   const load = new Map(); STAGES.forEach(([k]) => all_[k].forEach(r => { const e = mineOf(r); load.set(e, (load.get(e) || 0) + 1); }));
   const people = [...work.team].sort((a, b) => (a === me ? -1 : b === me ? 1 : (lateBy.get(b) || 0) - (lateBy.get(a) || 0) || (load.get(b) || 0) - (load.get(a) || 0) || cleanName(personName(a)).localeCompare(cleanName(personName(b)))));
   const chip = (id, label, n, cls) => `<button class="chip ${cls || ''}" data-sf="${id}">${label}<b>${n}</b></button>`;
-  const pills = chip('all', 'All', total, f === 'all' ? 'on' : '') + STAGES.filter(([k]) => k !== 'hold' || g.hold.length || f === 'hold')
+  const pills = chip('all', 'All', total, f === 'all' ? 'on' : '') + STAGES.filter(([k]) => !['hold', 'returned'].includes(k) || g[k].length || f === k)
     .map(([k, l]) => chip(k, l, g[k].length, f === k ? 'on' : k === 'overdue' && g.overdue.length ? 'hot' : '')).join('');
   const pchips = `<button class="chip ${who === 'all' ? 'on' : ''}" data-sw="all">Everyone</button>` + people.map(e =>
     `<button class="chip ${who === String(e) ? 'on' : ''} ${who !== String(e) && lateBy.get(e) ? 'hot' : ''}" data-sw="${e}">${e === me ? 'You' : esc(cleanName(personName(e)).split(' ').slice(0, 2).join(' '))}${lateBy.get(e) ? `<b>${lateBy.get(e)}</b>` : ''}</button>`).join('');

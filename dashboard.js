@@ -37,8 +37,9 @@ function dashModel(D, f) {
     const own = firstVisit.get(a.id);
     const ov = !own && (entVisits.get(a.entity.id) || []).find(x => x.visitor !== a.assignee);   // visited by a colleague
     const v = own || ov;
-    const st = v ? (v.status === 'verified' ? 'verified' : 'submitted') : D.hold && D.hold.has(a.id) ? 'hold' : (a.scheduled_on && a.scheduled_on < today ? 'overdue' : 'notdue');
-    return { a, v, by: ov ? ov.visitor : null, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, delay: v && a.scheduled_on ? daysBetween(a.scheduled_on, localDay(v.visited_at)) : null };
+    const back = v && v.status === 'returned';   // sent back: pending again
+    const st = v && !back ? (v.status === 'verified' ? 'verified' : 'submitted') : D.hold && D.hold.has(a.id) ? 'hold' : (a.scheduled_on && a.scheduled_on < today ? 'overdue' : 'notdue');
+    return { a, v: back ? null : v, back: back ? v : null, by: ov ? ov.visitor : null, st, late: st === 'overdue' ? daysBetween(a.scheduled_on, today) : 0, delay: v && !back && a.scheduled_on ? daysBetween(a.scheduled_on, localDay(v.visited_at)) : null };
   });
   const vis = D.vis.filter(okV);
   const n = { total: rows.length, verified: 0, submitted: 0, overdue: 0, notdue: 0, hold: 0 };
@@ -447,7 +448,7 @@ async function pendingPdf(M, f, D, withRO) {
           const late = r.st === 'overdue';
           x.fillStyle = late ? P.bad : P.warn; x.beginPath(); x.arc(PAD + 30, py - 8, 5, 0, Math.PI * 2); x.fill();
           txt(fit(r.a.entity.name, 760, sans(400, 22)), PAD + 46, py, { f: sans(400, 22) });
-          txt(late ? `${r.late} d delay` : 'Today', W - PAD - 22, py, { f: mono(600, 21), c: late ? P.bad : P.warn, a: 'right' });
+          txt((r.back ? 'Sent back · ' : '') + (late ? `${r.late} d delay` : 'Today'), W - PAD - 22, py, { f: mono(600, 21), c: late ? P.bad : P.warn, a: 'right' });
           py += PROW;
         });
         y += hgt + 10; i += n; first = false;
@@ -560,7 +561,7 @@ async function exportExcel(M, D) {
   const BLUE = '146CC0', LINE = 'D5DCE6';
   const border = { top: { style: 'thin', color: { rgb: LINE } }, bottom: { style: 'thin', color: { rgb: LINE } }, left: { style: 'thin', color: { rgb: LINE } }, right: { style: 'thin', color: { rgb: LINE } } };
   const FMT = { date: 'dd-mmm-yyyy', dt: 'dd-mmm-yyyy hh:mm', inr: '[>=10000000]"₹"##\\,##\\,##\\,##0;[>=100000]"₹"##\\,##\\,##0;"₹"##,##0', int: '0', pct: '0%', dec: '0.0' };
-  const TINT = { 'Overdue': 'FDE2E4', 'Verified': 'DDF3E4', 'Visited (not verified)': 'FFF1D6', 'Submitted': 'FFF1D6', 'On hold (request pending)': 'E9ECF1', 'Account opened': 'DDF3E4' };
+  const TINT = { 'Sent back': 'FDE2E4', 'Overdue': 'FDE2E4', 'Verified': 'DDF3E4', 'Visited (not verified)': 'FFF1D6', 'Submitted': 'FFF1D6', 'On hold (request pending)': 'E9ECF1', 'Account opened': 'DDF3E4' };
   // dates as Excel serial numbers in local (IST) wall time, so they show exactly as in the app
   const d = x => { if (!x) return ''; const t = new Date(x.length === 10 ? x + 'T00:00:00' : x); if (isNaN(t)) return '';
     return (Date.UTC(t.getFullYear(), t.getMonth(), t.getDate(), t.getHours(), t.getMinutes(), t.getSeconds()) - Date.UTC(1899, 11, 30)) / 864e5; };
@@ -645,7 +646,7 @@ async function exportExcel(M, D) {
     v.potential_rs != null ? +v.potential_rs : '', (v.products || []).join(', '), v.outcome || '', v.remarks || '', v.next_step || '',
     d(v.followup_on) || '', closureLabel(v.closure) || '', (v.account_numbers || []).join(', '), v.mobilised_rs != null ? +v.mobilised_rs : '',
     photosOf(v.id), v.lat != null ? `${(+v.lat).toFixed(5)}, ${(+v.lng).toFixed(5)}` : '',
-    v.status === 'verified' ? 'Verified' : 'Submitted', d(v.verified_at) || '', v.verified_at ? (v.verified_by ? personName(v.verified_by) : 'Admin') : '']);
+    v.status === 'verified' ? 'Verified' : v.status === 'returned' ? 'Sent back' : 'Submitted', d(v.verified_at) || '', v.verified_at ? (v.verified_by ? personName(v.verified_by) : 'Admin') : '']);
   const wsVi = table('Visit reports', [{ h: 'Place', w: 40, t: 'text' }, { h: 'Type', w: 20, t: 'text' }, { h: 'Area', w: 16, t: 'text' }, { h: 'Visit no', w: 8, t: 'int' },
     { h: 'Visited by', w: 26, t: 'text' }, { h: 'Emp ID', w: 9, t: 'int' }, { h: 'Branch', w: 18, t: 'text' }, { h: 'Visited at', w: 17, t: 'dt' }, { h: 'Submitted at', w: 17, t: 'dt' },
     { h: 'Allotted', w: 9, t: 'text' }, { h: 'Joint visit with', w: 24, t: 'text' }, { h: 'Person met', w: 22, t: 'text' }, { h: 'Designation', w: 18, t: 'text' },

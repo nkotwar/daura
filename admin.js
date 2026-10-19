@@ -157,7 +157,7 @@ async function drawPeople(el, mode, fresh = true) {
 /* Allotments not visited yet (by them or a colleague), per person: { n, late } — from the phone's copy */
 function pendingByEmp() {
   const today = todayISO(), m = new Map();
-  const vs = all('visits'), byAsg = new Set(vs.filter(v => v.assignment_id).map(v => v.assignment_id));
+  const vs = all('visits').filter(v => v.status !== 'returned'), byAsg = new Set(vs.filter(v => v.assignment_id).map(v => v.assignment_id));
   const held = new Set(all('requests').filter(r => r.status === 'pending' && r.assignment_id).map(r => r.assignment_id));
   for (const a of openAsg()) {
     if (byAsg.has(a.id) || held.has(a.id)) continue;
@@ -283,6 +283,8 @@ const ACT = {
   person_unblocked: (a) => `unblocked ${esc(cleanName(a.target_name || a.target))}`,
   visit_logged: (a) => `logged visit ${esc(a.detail?.visit_no || '')} at ${esc(a.detail?.entity || 'a place')}`,
   visit_verified: () => 'verified a visit',
+  visit_returned: (a) => `sent back ${esc(cleanName(a.target_name || a.target))}'s report on ${esc(a.detail?.entity || 'a place')}: "${esc(a.detail?.note || '')}"`,
+  visit_resubmitted: (a) => `resubmitted the report on ${esc(a.detail?.entity || 'a place')}`,
   visit_unverified: () => 'unverified a visit',
   request_raised: (a) => `raised a ${String(a.detail?.kind || '').replace('_', ' ')} request`,
   request_decided: (a) => `${a.detail?.approved ? 'approved' : 'declined'} a request`,
