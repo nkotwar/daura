@@ -174,8 +174,7 @@ async function viewDashboard(force = false) {
     ${M.followDue.length ? `<div class="card" id="fu-card" style="scroll-margin-top:70px"><h3>Follow-ups due</h3><div class="list">${M.followDue.slice(0, 30).map(v => `<button class="item" data-v="${v.id}"><div class="grow"><div class="t">${esc(v.entity.name)}</div>
       <div class="s">${esc(personName(v.visitor))} · ${esc(v.next_step || 'Follow-up')}</div></div><span class="badge ${v.followup_on < M.today ? 'bad' : 'warn'}">${fmtDate(v.followup_on)}</span></button>`).join('')}</div></div>` : ''}
 
-    <div class="card"><h3>Latest photos</h3><div class="pgrid" id="gal"><div class="hint" style="grid-column:1/-1">Loading…</div></div>
-      <button class="btn ghost block small" id="galmore" hidden style="margin-top:10px">Show more</button></div>
+    <div class="card"><h3>Latest photos</h3><div class="pgrid pgrid3" id="gal"><div class="hint" style="grid-column:1/-1">Loading…</div></div></div>
 
     <div class="card"><h3>Share &amp; export</h3>
       <div class="stack">
@@ -295,22 +294,20 @@ function openOfficer(emp) {
 }
 
 /* ───────── photo gallery ───────── */
-async function loadGallery(f, M, limit = 12) {
+async function loadGallery(f, M, limit = 6) {
   const el = $('#gal'); if (!el) return;
   try {
     const ids = new Set(M.vis.map(v => v.id));
     const filtered = f.camp || f.type || f.branch;
     let rows = all('photos').sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     if (filtered) rows = rows.filter(p => ids.has(p.visit_id));
-    const more = rows.length > limit; rows = rows.slice(0, limit);
+    rows = rows.slice(0, limit);
     if (!rows.length) { el.innerHTML = '<div class="hint" style="grid-column:1/-1">No photos yet.</div>'; return; }
     const urls = await signedUrls(rows.map(p => p.path));
     const vmap = new Map(M.vis.map(v => [v.id, v]));
     el.innerHTML = rows.map(p => { const v = vmap.get(p.visit_id); return `<button class="pthumb" data-v="${p.visit_id}" title="${v ? esc(v.entity.name + ' · ' + personName(v.visitor)) : ''}" style="border:0;padding:0;cursor:pointer">
       <img src="${urls[p.path] || ''}" alt="" loading="lazy"><span class="ptag">${v ? esc(v.entity.name.slice(0, 18)) : ''}</span></button>`; }).join('');
-    $$('[data-v]', el).forEach(b => b.onclick = () => openVisit(b.dataset.v));
-    const m = $('#galmore'); m.hidden = !more; m.onclick = () => loadGallery(f, M, limit + 24);
-  } catch (e) { el.innerHTML = `<div class="hint" style="grid-column:1/-1">${esc(errText(e))}</div>`; }
+    $$('[data-v]', el).forEach(b => b.onclick = () => openVisit(b.dataset.v));  } catch (e) { el.innerHTML = `<div class="hint" style="grid-column:1/-1">${esc(errText(e))}</div>`; }
 }
 
 /* ───────── summary image (1080 wide, as tall as needed: every branch, plus a totals row) ───────── */

@@ -187,6 +187,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 48 | Admin can **Send back** a submitted report with a reason; it counts as pending again (overdue / due, in the PDF too) until the staff member edits and saves it, which resubmits it. Shows in Activity | Run `sql/16_update_v48.sql` |
 | 49 | (rolled back) | — |
 | 50 | Version 49 undone. Follow-ups in My visits show at any date (no 7-day limit). "Lead status?" replaces "Close this place?". Follow-up date required for Interested / Follow-up needed / Person not available; hidden for Already our customer and closed leads; can be cleared; can't be before the visit date | If you ran `sql/17_update_v49.sql`, run `sql/18_restore_followup_rule.sql` |
+| 51 | Dashboard "Latest photos" now shows only the 6 newest, as small thumbnails, 3 per row (two rows); "Show more" removed | Nothing to run. Older versions still show the longer gallery |
 
 ---
 
