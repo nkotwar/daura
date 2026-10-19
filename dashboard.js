@@ -179,6 +179,7 @@ async function viewDashboard(force = false) {
     <div class="card"><h3>Share &amp; export</h3>
       <div class="stack">
         <button class="btn block" id="dx-img">Summary image for WhatsApp</button>
+        <button class="btn ghost block" id="dx-pdf">Pending visits, staff-wise (PDF)</button>
         <button class="btn ghost block" id="dx-xls">Download Excel (all data)</button>
       </div>
       <p class="hint">The image and the Excel follow the filters above.</p>
@@ -196,6 +197,7 @@ async function viewDashboard(force = false) {
   $$('[data-v]', main).forEach(b => b.onclick = () => openVisit(b.dataset.v));
   $('#dx-img').onclick = () => summaryImage(M, f, D);
   $('#dx-xls').onclick = () => exportExcel(M, D);
+  $('#dx-pdf').onclick = () => askPendingPdf(M, f, D);
   loadGallery(f, M);
 }
 
@@ -311,6 +313,137 @@ async function loadGallery(f, M, limit = 12) {
 }
 
 /* ───────── summary image (1080 wide, as tall as needed: every branch, plus a totals row) ───────── */
+/* ───────── Pending visits PDF (admin and viewers): overdue + due today, branch-wise then staff-wise, A4 pages ───────── */
+function askPendingPdf(M, f, D) {
+  const body = openSheet('Pending visits (PDF)', `
+    <p class="muted" style="margin-top:0">Overdue and due-today visits, branch by branch and staff by staff, on A4 pages. Follows the Type and Branch filters above.</p>
+    <label class="item" style="cursor:pointer"><div class="grow"><div class="t">Include Udaipur RO</div><div class="s">Regional Office staff's pending visits</div></div>
+      <input type="checkbox" id="pp-ro" style="width:22px;height:22px"></label>
+    <div class="spacer"></div>
+    <button class="btn block" id="pp-go">Make PDF</button>`);
+  $('#pp-go', body).onclick = async () => {
+    const b = $('#pp-go', body); b.disabled = true; b.textContent = 'Preparing…';
+    try { await pendingPdf(M, f, D, $('#pp-ro', body).checked); closeSheet(); }
+    catch (e) { toast(errText(e)); b.disabled = false; b.textContent = 'Make PDF'; }
+  };
+}
+
+async function pendingPdf(M, f, D, withRO) {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const today = M.today;
+  const pend = M.rows.filter(r => r.st === 'overdue' || (r.st === 'notdue' && r.a.scheduled_on === today));
+  const byB = new Map();
+  pend.forEach(r => {
+    const p = S.dir.get(r.a.assignee) || {};
+    const bc = p.branch_code, ro = !!(M.byBranch.find(b => b.code === bc) || {}).ro;
+    if (ro && !withRO) return;
+    if (!byB.has(bc)) byB.set(bc, { name: M.bname.get(bc) || p.branch || '—', ro, staff: new Map(), late: 0, today: 0 });
+    const B = byB.get(bc);
+    if (!B.staff.has(r.a.assignee)) B.staff.set(r.a.assignee, { name: cleanName(p.name || 'Emp ' + r.a.assignee), desig: p.designation || '', rows: [], late: 0, today: 0 });
+    const sf = B.staff.get(r.a.assignee);
+    sf.rows.push(r);
+    if (r.st === 'overdue') { sf.late++; B.late++; } else { sf.today++; B.today++; }
+  });
+  const branches = [...byB.values()].sort((a, b) => (b.ro ? 1 : 0) - (a.ro ? 1 : 0) || a.name.localeCompare(b.name));
+  branches.forEach(B => { B.list = [...B.staff.values()].sort((a, b) => b.late - a.late || b.today - a.today || a.name.localeCompare(b.name));
+    B.list.forEach(sf => sf.rows.sort((a, b) => (a.a.scheduled_on || '').localeCompare(b.a.scheduled_on || ''))); });
+  const totLate = branches.reduce((n, B) => n + B.late, 0), totToday = branches.reduce((n, B) => n + B.today, 0);
+  const nStaff = branches.reduce((n, B) => n + B.list.length, 0);
+
+  // A4 at 150 dpi
+  const W = 1240, H = 1754, PAD = 70, FOOT = 80, BAND = 64, SROW = 58, PROW = 38;
+  try { await document.fonts.load('600 30px "IBM Plex Sans"'); await document.fonts.load('600 30px "IBM Plex Mono"'); } catch (e) { /* fallback fonts */ }
+  const logo = await new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = 'icon-192.png'; });
+  const P = { bg: '#FFFFFF', card: '#F6F8FB', ink: '#142033', muted: '#5B6B80', faint: '#8A97A8', band: '#E6EDF6', acc: '#146CC0', bad: '#C2412D', badBg: '#FBE4E0', warn: '#A86A0F', warnBg: '#FBF0DC', red: '#D20838' };
+  const sans = (w, z) => `${w} ${z}px "IBM Plex Sans", system-ui, sans-serif`, mono = (w, z) => `${w} ${z}px "IBM Plex Mono", monospace`;
+  const pages = []; let c, x, y;
+  const txt = (t, X, Y, o = {}) => { x.font = o.f || sans(400, 26); x.fillStyle = o.c || P.ink; x.textAlign = o.a || 'left'; x.textBaseline = 'alphabetic'; x.fillText(t, X, Y); };
+  const fit = (t, maxW, font) => { x.font = font; if (x.measureText(t).width <= maxW) return t; while (t.length > 3 && x.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…'; };
+  const rr = (X, Y, w, h, r, fill) => { x.beginPath(); x.roundRect(X, Y, w, h, r); x.fillStyle = fill; x.fill(); };
+  const pill = (t, Xr, Y, fg, bg) => { x.font = sans(600, 21); const w = x.measureText(t).width + 26; rr(Xr - w, Y - 25, w, 34, 17, bg); txt(t, Xr - w / 2, Y - 1, { f: sans(600, 21), c: fg, a: 'center' }); return w; };
+  const stamp = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const scope = [withRO ? 'including Udaipur RO' : 'excluding Udaipur RO', f.type, f.branch && M.bname.get(f.branch)].filter(Boolean).join(' · ');
+  const newPage = () => {
+    c = document.createElement('canvas'); c.width = W; c.height = H; x = c.getContext('2d'); pages.push(c);
+    x.fillStyle = P.bg; x.fillRect(0, 0, W, H);
+    if (pages.length === 1) {
+      if (logo) x.drawImage(logo, PAD, 60, 76, 76);
+      txt('TASC Connect · Pending visits', PAD + 96, 102, { f: sans(700, 40) });
+      txt(`Udaipur RO · Overdue and due today · ${scope}`, PAD + 96, 136, { f: sans(400, 23), c: P.muted });
+      txt(stamp, W - PAD, 102, { f: sans(500, 22), c: P.muted, a: 'right' });
+      x.fillStyle = P.red; x.fillRect(PAD, 166, W - 2 * PAD, 4);
+      [[totLate, 'Overdue', P.bad], [totToday, 'Due today', P.warn], [nStaff, 'Staff with pending', P.ink], [branches.length, 'Branches', P.ink]].forEach(([v, l, col], i) => {
+        const w = (W - 2 * PAD - 3 * 16) / 4, cx = PAD + i * (w + 16), cy = 196;
+        rr(cx, cy, w, 108, 16, P.card);
+        txt(String(v), cx + 22, cy + 56, { f: mono(600, 40), c: col });
+        txt(l, cx + 22, cy + 90, { f: sans(500, 21), c: P.muted });
+      });
+      y = 340;
+    } else {
+      txt('TASC Connect · Pending visits', PAD, 70, { f: sans(700, 24), c: P.muted });
+      txt(stamp, W - PAD, 70, { f: sans(500, 20), c: P.faint, a: 'right' });
+      x.fillStyle = P.red; x.fillRect(PAD, 88, W - 2 * PAD, 3);
+      y = 116;
+    }
+  };
+  const room = h => y + h <= H - FOOT;
+  const band = (B, contd) => {
+    rr(PAD, y, W - 2 * PAD, BAND, 14, P.band);
+    txt(fit(B.name.toUpperCase() + (contd ? '  (continued)' : ''), 700, sans(700, 26)), PAD + 22, y + 42, { f: sans(700, 26), c: P.acc });
+    let xr = W - PAD - 18;
+    if (B.today) xr -= pill(`${B.today} today`, xr, y + 44, P.warn, P.warnBg) + 10;
+    if (B.late) pill(`${B.late} overdue`, xr, y + 44, P.bad, P.badBg);
+    y += BAND + 10;
+  };
+  newPage();
+  if (!branches.length) txt('Nothing overdue or due today.', W / 2, y + 80, { f: sans(600, 30), c: P.muted, a: 'center' });
+  branches.forEach(B => {
+    if (!room(BAND + 10 + SROW + PROW + 10)) newPage();
+    band(B, false);
+    B.list.forEach(sf => {
+      let i = 0, first = true;
+      while (i < sf.rows.length) {
+        // how many places fit on this page for this person
+        let fitN = Math.floor((H - FOOT - y - SROW - 10) / PROW);
+        if (fitN < 1) { newPage(); band(B, true); continue; }
+        const n = Math.min(fitN, sf.rows.length - i), hgt = SROW + n * PROW;
+        rr(PAD, y, W - 2 * PAD, hgt, 14, P.card);
+        const nm = fit(sf.name + (first ? '' : ' (continued)'), 620, sans(700, 25));
+        txt(nm, PAD + 22, y + 38, { f: sans(700, 25) });
+        x.font = sans(700, 25); const nw = x.measureText(nm).width;
+        if (first) txt(fit(sf.desig, 320, sans(400, 20)), PAD + 34 + nw, y + 38, { f: sans(400, 20), c: P.faint });
+        if (first) { let xr = W - PAD - 18; if (sf.today) xr -= pill(`${sf.today} today`, xr, y + 40, P.warn, P.warnBg) + 10; if (sf.late) pill(`${sf.late} overdue`, xr, y + 40, P.bad, P.badBg); }
+        let py = y + SROW + 26;
+        sf.rows.slice(i, i + n).forEach(r => {
+          const late = r.st === 'overdue';
+          x.fillStyle = late ? P.bad : P.warn; x.beginPath(); x.arc(PAD + 30, py - 8, 5, 0, Math.PI * 2); x.fill();
+          txt(fit(r.a.entity.name, 760, sans(400, 22)), PAD + 46, py, { f: sans(400, 22) });
+          txt(late ? `${r.late} d late` : 'Today', W - PAD - 22, py, { f: mono(600, 21), c: late ? P.bad : P.warn, a: 'right' });
+          py += PROW;
+        });
+        y += hgt + 10; i += n; first = false;
+        if (i < sf.rows.length) { newPage(); band(B, true); }
+      }
+    });
+    y += 16;
+  });
+  // footers with page numbers
+  pages.forEach((pg, k) => { x = pg.getContext('2d'); txt(`TASC Connect · Central Bank of India · via PDUDAIRO`, PAD, H - 40, { f: sans(500, 19), c: P.faint });
+    txt(`Page ${k + 1} of ${pages.length}`, W - PAD, H - 40, { f: sans(500, 19), c: P.faint, a: 'right' }); });
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  pages.forEach((pg, k) => { if (k) pdf.addPage(); pdf.addImage(pg.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 210, 297); });
+  const blob = pdf.output('blob');
+  const name = `TASC-Connect-pending-${todayISO()}.pdf`;
+  const file = new File([blob], name, { type: 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'TASC Connect pending visits' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('PDF downloaded');
+}
+
 async function summaryImage(M, f, D) {
   const W = 1080, ROW = 46;
   const br = M.byBranch;
@@ -389,7 +522,7 @@ async function summaryImage(M, f, D) {
 
 /* ───────── Excel export (SheetJS, loaded only when needed) ───────── */
 function loadScript(src) {
-  return new Promise((res, rej) => { if ([...document.scripts].some(s => s.src === src)) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load the Excel tool. Check your internet.')); document.head.appendChild(s); });
+  return new Promise((res, rej) => { if ([...document.scripts].some(s => s.src === src)) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load the export tool. Check your internet.')); document.head.appendChild(s); });
 }
 async function exportExcel(M, D) {
   toast('Preparing Excel…', 2000);
