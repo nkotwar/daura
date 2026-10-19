@@ -391,14 +391,14 @@ async function pendingPdf(M, f, D, withRO) {
   const rr = (X, Y, w, h, r, fill) => { x.beginPath(); x.roundRect(X, Y, w, h, r); x.fillStyle = fill; x.fill(); };
   const pill = (t, Xr, Y, fg, bg) => { x.font = sans(600, 21); const w = x.measureText(t).width + 26; rr(Xr - w, Y - 25, w, 34, 17, bg); txt(t, Xr - w / 2, Y - 1, { f: sans(600, 21), c: fg, a: 'center' }); return w; };
   const stamp = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const scope = [withRO ? 'including Udaipur RO' : 'excluding Udaipur RO', f.type, f.branch && M.bname.get(f.branch)].filter(Boolean).join(' · ');
+  const scope = [f.type, f.branch && M.bname.get(f.branch)].filter(Boolean).join(' · ');
   const newPage = () => {
     c = document.createElement('canvas'); c.width = W; c.height = H; x = c.getContext('2d'); pages.push(c);
     x.fillStyle = P.bg; x.fillRect(0, 0, W, H);
     if (pages.length === 1) {
       if (logo) x.drawImage(logo, PAD, 60, 76, 76);
       txt('TASC Connect · Pending visits', PAD + 96, 102, { f: sans(700, 40) });
-      txt(`Udaipur RO · Overdue and due today · ${scope}`, PAD + 96, 136, { f: sans(400, 23), c: P.muted });
+      txt(`Udaipur RO · Overdue and due today${scope ? ' · ' + scope : ''}`, PAD + 96, 136, { f: sans(400, 23), c: P.muted });
       txt(stamp, W - PAD, 102, { f: sans(500, 22), c: P.muted, a: 'right' });
       x.fillStyle = P.red; x.fillRect(PAD, 166, W - 2 * PAD, 4);
       [[totLate, 'Overdue', P.bad], [totToday, 'Due today', P.warn], [nStaff, 'Staff with pending', P.ink], [branches.length, 'Branches', P.ink]].forEach(([v, l, col], i) => {
@@ -465,7 +465,7 @@ async function pendingPdf(M, f, D, withRO) {
   const blob = pdf.output('blob');
   const name = `TASC-Connect-pending-${todayISO()}.pdf`;
   const day = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  const text = `*TASC Connect · Pending visits* (${day})\nOverdue: ${totLate} · Due today: ${totToday}${withRO ? '' : ' (excluding Udaipur RO)'}\n\n`
+  const text = `*TASC Connect · Pending visits* (${day})\nOverdue: ${totLate} · Due today: ${totToday}\n\n`
     + `Please complete your pending visits and submit the visit reports.\n`
     + `To view or submit your visits, open TASC Connect, tap *Sign in with your name*, select your name and enter your date of birth:\n`
     + `${daoraLink()}\n\n– Regional Office, Udaipur`;
