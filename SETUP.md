@@ -185,7 +185,6 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 46 | A small floating **Update ready** chip shows on every tab when a new version is out; tapping it opens Profile. The app also checks for updates when you come back to it | None |
 | 47 | Test release (no changes) to try the Update ready chip | None |
 | 48 | Admin can **Send back** a submitted report with a reason; it counts as pending again (overdue / due, in the PDF too) until the staff member edits and saves it, which resubmits it. Shows in Activity | Run `sql/16_update_v48.sql` |
-| 49 | Follow-ups: "Lead status?" replaces "Close this place?"; no follow-up for a closed lead or an existing customer; **No follow-up** clears the date; follow-ups now count as pending (Upcoming / Today / Overdue) in My visits, My Staff Visits, officers, People → Due and the pending PDF; a follow-up visit no longer waits for verification | Run `sql/17_update_v49.sql` |
 
 ---
 

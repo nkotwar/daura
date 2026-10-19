@@ -157,13 +157,6 @@ function qAssignees(entityId) {
       visited_by_emp: fv ? fv.visitor : null, visited_by: fv ? personName(fv.visitor) : null, visited_at: fv ? fv.visited_at : null };
   });
 }
-/* Follow-ups still to do: the latest visit to each open place, with a follow-up date (and not sent back).
-   It is done when a newer visit to the place is reported. */
-function qFollowups() {
-  const latest = new Map();
-  all('visits').forEach(v => { const c = latest.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latest.set(v.entity_id, v); });
-  return [...latest.values()].filter(v => v.followup_on && !v.closure && v.status !== 'returned').map(withEntity);
-}
 /* One visit with its photos and joint visitors */
 function qVisit(id) {
   const v = get('visits', id); if (!v) return null;

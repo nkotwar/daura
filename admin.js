@@ -166,12 +166,6 @@ function pendingByEmp() {
     c.n++; if (a.scheduled_on && a.scheduled_on < today) c.late++;
     m.set(a.assignee, c);
   }
-  // follow-ups dated today or earlier
-  qFollowups().filter(v => v.followup_on <= today).forEach(v => {
-    const c = m.get(v.visitor) || { n: 0, late: 0 };
-    c.n++; if (v.followup_on < today) c.late++;
-    m.set(v.visitor, c);
-  });
   return m;
 }
 
