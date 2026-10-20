@@ -189,6 +189,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 50 | Version 49 undone. Follow-ups in My visits show at any date (no 7-day limit). "Lead status?" replaces "Close this place?". Follow-up date required for Interested / Follow-up needed / Person not available; hidden for Already our customer and closed leads; can be cleared; can't be before the visit date | If you ran `sql/17_update_v49.sql`, run `sql/18_restore_followup_rule.sql` |
 | 51 | Dashboard "Latest photos" now shows only the 6 newest, as small thumbnails, 3 per row (two rows); "Show more" removed | Nothing to run. Older versions still show the longer gallery |
 | 52 | Admin → Activity: opens on "Attention" (wrong date-of-birth tries, blocks, role changes), filters (All / Visits / People / Places), search by person or place, grouped by day, bulk actions collapsed, "Load more". Faster sync. Small thumbnails for photo lists (new photos only). Old routine Activity rows are cleaned after 90 days | Run `sql/19_update_v52.sql`. Until you do, the new Activity screen shows the latest 150 with the filters applied on the phone. Older app versions keep the old list |
+| 53 | Summary image for WhatsApp now asks "Include Udaipur RO" (unchecked by default), like the PDF. Left out, the Regional Office is missing from the branch table and from every total on the image | Nothing to run |
 
 ---
 

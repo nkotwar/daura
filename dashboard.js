@@ -25,8 +25,8 @@ function dashModel(D, f) {
   const bname = new Map(D.branches.map(b => [b.code, b.name]));
   const ro = new Set(D.branches.filter(b => b.is_ro).map(b => b.code));
   const asgCamp = new Map(D.asg.map(a => [a.id, a.campaign_id]));
-  const okA = a => (!f.camp || a.campaign_id === f.camp) && (!f.type || a.entity.type === f.type) && (!f.branch || staff(a.assignee).branch_code === f.branch);
-  const okV = v => (!f.camp || (v.assignment_id && asgCamp.get(v.assignment_id) === f.camp)) && (!f.type || v.entity.type === f.type) && (!f.branch || v.visitor_branch === f.branch);
+  const okA = a => (!f.camp || a.campaign_id === f.camp) && (!f.type || a.entity.type === f.type) && (!f.branch || staff(a.assignee).branch_code === f.branch) && !(f.noRO && ro.has(staff(a.assignee).branch_code));
+  const okV = v => (!f.camp || (v.assignment_id && asgCamp.get(v.assignment_id) === f.camp)) && (!f.type || v.entity.type === f.type) && (!f.branch || v.visitor_branch === f.branch) && !(f.noRO && ro.has(v.visitor_branch));
 
   const firstVisit = new Map();
   D.vis.forEach(v => { if (v.assignment_id) { const c = firstVisit.get(v.assignment_id); if (!c || v.visit_no < c.visit_no) firstVisit.set(v.assignment_id, v); } });
@@ -195,7 +195,7 @@ async function viewDashboard(force = false) {
   $$('[data-br]').forEach(r => r.onclick = () => openBranch(+r.dataset.br));
   bindOfficers(M);
   $$('[data-v]', main).forEach(b => b.onclick = () => openVisit(b.dataset.v));
-  $('#dx-img').onclick = () => summaryImage(M, f, D);
+  $('#dx-img').onclick = () => askSummaryImage(M, f, D);
   $('#dx-xls').onclick = () => exportExcel(M, D);
   $('#dx-pdf').onclick = () => askPendingPdf(M, f, D);
   loadGallery(f, M);
@@ -470,9 +470,23 @@ async function pendingPdf(M, f, D, withRO) {
   return { blob, name, text };
 }
 
-async function summaryImage(M, f, D) {
+function askSummaryImage(M, f, D) {
+  const body = openSheet('Summary image', `
+    <p class="muted" style="margin-top:0">A picture of the branch table and totals, to share on WhatsApp. Follows the Type and Branch filters above.</p>
+    <label class="item" style="cursor:pointer"><div class="grow"><div class="t">Include Udaipur RO</div><div class="s">Regional Office staff's visits</div></div>
+      <input type="checkbox" id="si-ro" style="width:22px;height:22px"></label>
+    <div class="spacer"></div>
+    <button class="btn block" id="si-go">Make image</button>`);
+  $('#si-go', body).onclick = async () => {
+    const b = $('#si-go', body); b.disabled = true; b.textContent = 'Preparing…';
+    try { await summaryImage(M, f, D, $('#si-ro', body).checked); closeSheet(); }
+    catch (e) { toast(errText(e)); b.disabled = false; b.textContent = 'Make image'; }
+  };
+}
+async function summaryImage(M, f, D, withRO) {
+  if (!withRO) M = dashModel(D, { ...f, noRO: true });   // everything on the image leaves the Regional Office out
   const W = 1080, ROW = 46;
-  const br = M.byBranch;
+  const br = M.byBranch.filter(b => withRO || !b.ro);
   const H = 640 + 70 + (br.length + 1) * ROW + 120;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d');
