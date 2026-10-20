@@ -73,7 +73,7 @@ async function admRequests() {
     try {
       if (approve && r.kind === 'delete_visit' && r.visit_id) {
         const ph = all('photos').filter(p => p.visit_id === r.visit_id);
-        if (ph.length) await sb.storage.from('photos').remove(ph.map(p => p.path));
+        if (ph.length) await sb.storage.from('photos').remove(withThumbs(ph.map(p => p.path)));
       }
       await rpc('decide_request', { p_request: id, p_approve: approve, p_note: note, p_to: to });
       // apply the decision to the phone's copy
@@ -292,14 +292,88 @@ const ACT = {
   place_reopened: () => 'reopened a closed place',
   place_deleted: (a) => `deleted the place ${esc(a.detail?.entity || '')}${a.detail?.visits ? ` with ${a.detail.visits} visit report${a.detail.visits > 1 ? 's' : ''}` : ''}`
 };
+/* What each filter shows */
+const ACT_KINDS = {
+  attention: ['Attention', ['claim_failed', 'person_blocked', 'person_unblocked', 'role_set', 'login_unlinked', 'place_deleted']],
+  all: ['All', null],
+  visits: ['Visits', ['visit_logged', 'visit_verified', 'visit_unverified', 'visit_returned', 'visit_resubmitted', 'request_raised', 'request_decided']],
+  people: ['People', ['login_linked', 'login_unlinked', 'claim_failed', 'role_set', 'person_blocked', 'person_unblocked', 'directory_imported']],
+  places: ['Places', ['allotted', 'assignment_reassigned', 'place_reopened', 'place_deleted']]
+};
+/* A run of 3+ of these by the same person within 30 minutes shows as one line you can open */
+const ACT_BULK = { allotted: ['allotted', 'places'], visit_verified: ['verified', 'visits'], visit_logged: ['logged', 'visits'],
+  login_linked: ['linked', 'sign-ins'], assignment_reassigned: ['reallotted', 'places'] };
+const AC = { kind: 'attention', q: '', rows: [], more: false, legacy: false, open: new Set(), t: 0 };
+const actDay = d => { const k = new Date(d).toLocaleDateString('en-CA'), t = new Date(), y = new Date(t.getTime() - 864e5);
+  return k === t.toLocaleDateString('en-CA') ? 'Today' : k === y.toLocaleDateString('en-CA') ? 'Yesterday'
+    : new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: new Date(d).getFullYear() === t.getFullYear() ? undefined : 'numeric' }); };
+const actTime = d => new Date(d).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+const actWho = a => a.actor ? cleanName(a.actor) : (a.actor_gmail || 'Setup');
+
+async function actFetch(more) {
+  const acts = ACT_KINDS[AC.kind][1], last = more ? AC.rows[AC.rows.length - 1] : null;
+  if (!AC.legacy) {
+    try {
+      const rows = await rpc('admin_activity_v2', { p_before: last ? last.at : null, p_before_id: last ? last.id : null, p_limit: 50, p_actions: acts, p_q: AC.q || null });
+      AC.rows = more ? AC.rows.concat(rows) : rows; AC.more = rows.length === 50; return;
+    } catch (e) {
+      if (!/admin_activity_v2|PGRST202|404|schema cache/i.test(String(e && (e.message || e.code || e)))) throw e;
+      AC.legacy = true;   // the database has not had sql/19 yet: the old list, filtered here
+    }
+  }
+  let rows = await rpc('admin_activity', { p_limit: 150 });
+  if (acts) rows = rows.filter(a => acts.includes(a.action));
+  if (AC.q) { const t = AC.q.toLowerCase(); rows = rows.filter(a => (actWho(a) + ' ' + (a.target_name || '') + ' ' + JSON.stringify(a.detail || {})).toLowerCase().includes(t)); }
+  AC.rows = rows; AC.more = false;
+}
+function actLine(a) {
+  const bad = a.action === 'claim_failed' || a.action === 'person_blocked';
+  return `<div class="item" style="cursor:default;align-items:flex-start">
+    <div class="grow"><div style="font-size:14px"><b>${esc(actWho(a))}</b> ${(ACT[a.action] || (() => esc(a.action)))(a)}</div><div class="s">${actTime(a.at)}</div></div>
+    ${bad ? '<span class="badge bad">Check</span>' : ''}</div>`;
+}
+function actHTML() {
+  const rows = AC.rows; let out = '', day = '', i = 0;
+  while (i < rows.length) {
+    const a = rows[i], d = actDay(a.at);
+    if (d !== day) { day = d; out += `<div class="hint" style="margin:14px 0 4px;font-weight:600">${esc(d)}</div>`; }
+    let j = i + 1;
+    if (ACT_BULK[a.action]) while (j < rows.length && rows[j].action === a.action && rows[j].actor_gmail === a.actor_gmail && rows[j].actor === a.actor
+      && actDay(rows[j].at) === d && Math.abs(new Date(rows[j - 1].at) - new Date(rows[j].at)) < 18e5) j++;
+    if (j - i >= 3) {
+      const b = ACT_BULK[a.action], key = a.id != null ? a.id : a.at, run = rows.slice(i, j), open = AC.open.has(key);
+      out += `<div class="item" data-run="${esc(String(key))}" style="align-items:flex-start;cursor:pointer"><div class="grow"><div style="font-size:14px"><b>${esc(actWho(a))}</b> ${b[0]} ${run.length} ${b[1]}</div>
+        <div class="s">${actTime(run[run.length - 1].at)}–${actTime(a.at)} · tap to ${open ? 'hide' : 'see each'}</div></div></div>`;
+      if (open) out += `<div style="margin-left:12px;border-left:2px solid var(--line, #ddd)">${run.map(actLine).join('')}</div>`;
+    } else out += rows.slice(i, j).map(actLine).join('');
+    i = j;
+  }
+  return out;
+}
 async function admActivity() {
-  const rows = await rpc('admin_activity', { p_limit: 150 });
-  admPane('activity').innerHTML = rows.length ? `<div class="list">${rows.map(a => {
-    const who = a.actor ? cleanName(a.actor) : (a.actor_gmail || 'Setup');
-    const what = (ACT[a.action] || (() => esc(a.action)))(a);
-    const bad = a.action === 'claim_failed' || a.action === 'person_blocked';
-    return `<div class="item" style="cursor:default;align-items:flex-start">
-      <div class="grow"><div style="font-size:14px"><b>${esc(who)}</b> ${what}</div><div class="s">${fmtDateTime(a.at)}</div></div>
-      ${bad ? '<span class="badge bad">Check</span>' : ''}</div>`; }).join('')}</div>`
-    : emptyState(ICON.user, 'Nothing yet', 'Sign-ins, new Gmail links, failed date-of-birth tries, role changes and staff-list uploads will show up here.');
+  const el = admPane('activity');
+  if (!el.dataset.ready) {
+    el.dataset.ready = '1';
+    el.innerHTML = `<div class="search">${ICON.search}<input class="input" id="aq" type="search" placeholder="Person or place" autocomplete="off"></div>
+      <div class="chips" id="akinds">${Object.entries(ACT_KINDS).map(([k, v]) => `<button class="chip" data-k="${k}">${v[0]}</button>`).join('')}</div>
+      <div id="alist"></div><button class="btn ghost block small" id="amore" hidden style="margin-top:12px">Load more</button>`;
+    const reload = async () => { await draw(false); };
+    $('#aq', el).oninput = e => { clearTimeout(AC.t); AC.t = setTimeout(() => { AC.q = e.target.value.trim(); reload(); }, 350); };
+    $$('[data-k]', el).forEach(b => b.onclick = () => { AC.kind = b.dataset.k; reload(); });
+    $('#amore', el).onclick = async () => { $('#amore', el).disabled = true; try { await draw(true); } finally { $('#amore', el).disabled = false; } };
+    el._draw = draw;
+  }
+  async function draw(more) {
+    $$('[data-k]', el).forEach(b => b.classList.toggle('on', b.dataset.k === AC.kind));
+    const box = $('#alist', el);
+    if (!more) box.innerHTML = '<div class="hint" style="margin-top:12px">Loading…</div>';
+    try { await actFetch(more); } catch (e) { box.innerHTML = `<div class="hint" style="color:var(--bad)">${esc(errText(e))}</div>`; return; }
+    box.innerHTML = AC.rows.length ? actHTML() : emptyState(ICON.user, AC.kind === 'attention' && !AC.q ? 'Nothing needs attention' : 'Nothing found',
+      AC.kind === 'attention' && !AC.q ? 'Wrong date-of-birth tries, blocks, role changes and removed sign-ins will show here. Tap All to see everything.' : 'Try another filter or name.');
+    bindRuns(box);
+    $('#amore', el).hidden = !AC.more;
+    if (AC.legacy && !el.querySelector('#alegacy')) box.insertAdjacentHTML('beforebegin', '<p class="hint" id="alegacy">Showing the latest 150 only. Run <b>sql/19_update_v52.sql</b> in Supabase for older entries and faster search.</p>');
+  }
+  function bindRuns(box) { $$('[data-run]', box).forEach(b => b.onclick = () => { const k = b.dataset.run, key = isNaN(+k) ? k : +k; AC.open.has(key) ? AC.open.delete(key) : AC.open.add(key); box.innerHTML = actHTML(); bindRuns(box); }); }
+  await draw(false);
 }

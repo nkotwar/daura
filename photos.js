@@ -96,6 +96,20 @@ function drawStamp(x, w, h, s) {
 
 const fmtCoords = p => p && p.lat != null ? `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}${p.acc ? ' ±' + p.acc + ' m' : ''}` : '';
 
+/* Small copy of each photo for lists (about 20 KB instead of 250 KB). Stored next to the original as <name>_t.jpg.
+   Photos taken before thumbnails existed have none: lists then use the original. */
+const THUMB_EDGE = 360, THUMB_Q = 0.7;
+const thumbPath = p => p.replace(/\.jpg$/, '_t.jpg');
+const withThumbs = paths => paths.flatMap(p => [p, thumbPath(p)]);
+async function makeThumb(blob) {
+  const bmp = await createImageBitmap(blob);
+  const k = Math.min(1, THUMB_EDGE / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  if (bmp.close) bmp.close();
+  return new Promise(res => c.toBlob(res, 'image/jpeg', THUMB_Q));
+}
+
 /* Short-lived links to view private photos (10 minutes). */
 const URLS = new Map();   // path → { url, until }
 async function signedUrls(paths) {
@@ -106,5 +120,18 @@ async function signedUrls(paths) {
     if (error) throw error;
     (data || []).forEach(d => { if (d.signedUrl) { m[d.path] = d.signedUrl; URLS.set(d.path, { url: d.signedUrl, until: now + 540000 }); } });
   }
+  return m;
+}
+
+/* Links for small pictures: the thumbnail where there is one, else the original. */
+const NOTHUMB = new Set();
+async function signedThumbs(paths) {
+  const m = {}, ask = paths.filter(p => !NOTHUMB.has(p));
+  if (ask.length) {
+    const t = await signedUrls(ask.map(thumbPath)).catch(() => ({}));
+    ask.forEach(p => { if (t[thumbPath(p)]) m[p] = t[thumbPath(p)]; else NOTHUMB.add(p); });
+  }
+  const miss = paths.filter(p => !m[p]);
+  if (miss.length) { const o = await signedUrls(miss); miss.forEach(p => { m[p] = o[p]; }); }
   return m;
 }

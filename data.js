@@ -58,7 +58,7 @@ async function pushVisit(item) {
   }
   for (const p of (item.removePhotos || [])) {
     if (p.done) continue;
-    await sb.storage.from('photos').remove([p.path]);
+    await sb.storage.from('photos').remove(withThumbs([p.path]));
     const r = await sb.from('visit_photos').delete().eq('id', p.id); if (r.error) throw r.error;
     drop('photos', p.id);
     p.done = true;
@@ -68,6 +68,7 @@ async function pushVisit(item) {
     const path = `${item.id}/${p.id}.jpg`;
     const up = await sb.storage.from('photos').upload(path, p.blob, { contentType: 'image/jpeg', upsert: false });
     if (up.error && !/exists|Duplicate/i.test(up.error.message || '')) throw up.error;
+    try { await sb.storage.from('photos').upload(thumbPath(path), await makeThumb(p.blob), { contentType: 'image/jpeg', upsert: true }); } catch (e) { /* the small copy is optional */ }
     const r = await sb.from('visit_photos').upsert({ id: p.id, visit_id: item.id, path, bytes: p.blob.size, source: p.source,
       taken_at: p.taken_at || null, lat: p.lat ?? null, lng: p.lng ?? null }, { onConflict: 'id', ignoreDuplicates: true });
     if (r.error) throw r.error;

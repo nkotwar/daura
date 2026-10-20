@@ -303,7 +303,7 @@ async function loadGallery(f, M, limit = 6) {
     if (filtered) rows = rows.filter(p => ids.has(p.visit_id));
     rows = rows.slice(0, limit);
     if (!rows.length) { el.innerHTML = '<div class="hint" style="grid-column:1/-1">No photos yet.</div>'; return; }
-    const urls = await signedUrls(rows.map(p => p.path));
+    const urls = await signedThumbs(rows.map(p => p.path));
     const vmap = new Map(M.vis.map(v => [v.id, v]));
     el.innerHTML = rows.map(p => { const v = vmap.get(p.visit_id); return `<button class="pthumb" data-v="${p.visit_id}" title="${v ? esc(v.entity.name + ' · ' + personName(v.visitor)) : ''}" style="border:0;padding:0;cursor:pointer">
       <img src="${urls[p.path] || ''}" alt="" loading="lazy"><span class="ptag">${v ? esc(v.entity.name.slice(0, 18)) : ''}</span></button>`; }).join('');

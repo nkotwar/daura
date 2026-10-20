@@ -236,7 +236,7 @@ async function deletePlace(e) {
   if (!ok) return openPlace(e);
   try {
     const r = S.who.admin ? await rpc('admin_delete_place', { p_entity: e.id }) : (await rpc('delete_my_place', { p_entity: e.id }), null);
-    if (r && r.paths && r.paths.length) sb.storage.from('photos').remove(r.paths).catch(() => {});
+    if (r && r.paths && r.paths.length) sb.storage.from('photos').remove(withThumbs(r.paths)).catch(() => {});
     visitsOf(e.id).forEach(v => dropVisit(v.id));
     all('assignments').filter(a => a.entity_id === e.id).forEach(a => drop('assignments', a.id));
     drop('entities', e.id);
@@ -277,6 +277,7 @@ async function openVisit(id) {
   const canVerify = v.status === 'submitted' && adm;   // only the Regional Office verifies
   $('.sheet-head h3').textContent = `${ent.name} · Visit ${v.visit_no}`;
   const urls = photos.length ? await signedUrls(photos.map(p => p.path)).catch(() => ({})) : {};
+  const turls = photos.length ? await signedThumbs(photos.map(p => p.path)).catch(() => urls) : {};
   const pr = qMyPendingFor(v.id), pending = pr ? ({ delete_visit: 'delete', unverify: 'unverify' }[pr.kind] || '') : '';
   const kv = (k, val) => val == null || val === '' || (Array.isArray(val) && !val.length) ? '' : `<dt>${k}</dt><dd>${val}</dd>`;
   body.innerHTML = `
@@ -286,7 +287,7 @@ async function openVisit(id) {
       ${v.assignment_id ? '<span class="badge acc">Allotted</span>' : '<span class="badge">Self-initiated</span>'}</div>
     ${back ? `<div class="note bad" style="margin-bottom:12px"><b>Sent back by the Regional Office${v.returned_at ? ' · ' + fmtDateTime(v.returned_at) : ''}:</b> ${esc(v.return_note || '')}${mine ? '<br>Make the changes and save: it goes back for checking.' : ''}</div>`
       : v.resubmitted_at && v.status === 'submitted' ? `<div class="note" style="margin-bottom:12px">Resubmitted ${fmtDateTime(v.resubmitted_at)} after being sent back${v.return_note ? `: "${esc(v.return_note)}"` : ''}.</div>` : ''}
-    ${photos.length ? `<div class="pgrid" style="margin-bottom:14px">${photos.map(p => `<a class="pthumb" href="${urls[p.path] || '#'}" target="_blank" rel="noopener"><img src="${urls[p.path] || ''}" alt="Visit photo" loading="lazy"><span class="ptag">${p.source === 'capture' ? 'Live' : 'Uploaded'}</span></a>`).join('')}</div>` : ''}
+    ${photos.length ? `<div class="pgrid" style="margin-bottom:14px">${photos.map(p => `<a class="pthumb" href="${urls[p.path] || '#'}" target="_blank" rel="noopener"><img src="${turls[p.path] || urls[p.path] || ''}" alt="Visit photo" loading="lazy"><span class="ptag">${p.source === 'capture' ? 'Live' : 'Uploaded'}</span></a>`).join('')}</div>` : ''}
     <dl class="kv">
       ${kv('Visited by', esc(personName(v.visitor)) + (joint.length ? ' with ' + joint.map(j => esc(personName(j.emp_id))).join(', ') : ''))}
       ${kv('When', fmtDateTime(v.visited_at))}
@@ -360,7 +361,7 @@ async function deleteVisitWithPhotos(id, photos) {
   const gone = await q(sb.from('visits').delete().eq('id', id).select('id'));
   if (!gone.length) throw { message: 'NOT_ALLOWED', hint: 'This visit can no longer be deleted. It may have been verified.' };
   dropVisit(id);
-  if (photos && photos.length) await sb.storage.from('photos').remove(photos.map(p => p.path)).catch(() => {});
+  if (photos && photos.length) await sb.storage.from('photos').remove(withThumbs(photos.map(p => p.path))).catch(() => {});
 }
 
 function refreshCurrent() { closeSheet(); if (VIEWS[S.tab]) VIEWS[S.tab](); }
