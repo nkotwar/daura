@@ -190,6 +190,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 51 | Dashboard "Latest photos" now shows only the 6 newest, as small thumbnails, 3 per row (two rows); "Show more" removed | Nothing to run. Older versions still show the longer gallery |
 | 52 | Admin → Activity: opens on "Attention" (wrong date-of-birth tries, blocks, role changes), filters (All / Visits / People / Places), search by person or place, grouped by day, bulk actions collapsed, "Load more". Faster sync. Small thumbnails for photo lists (new photos only). Old routine Activity rows are cleaned after 90 days | Run `sql/19_update_v52.sql`. Until you do, the new Activity screen shows the latest 150 with the filters applied on the phone. Older app versions keep the old list |
 | 53 | Summary image for WhatsApp now asks "Include Udaipur RO" (unchecked by default), like the PDF. Left out, the Regional Office is missing from the branch table and from every total on the image | Nothing to run |
+| 54 | Summary image: after making it, a share sheet like the PDF's, with an editable WhatsApp message (totals and the sign-in line), Share with message, Copy message, Download | Nothing to run |
 
 ---
 

@@ -324,34 +324,34 @@ function askPendingPdf(M, f, D) {
     let out;
     try { out = await pendingPdf(M, f, D, $('#pp-ro', body).checked); }
     catch (e) { toast(errText(e)); b.disabled = false; b.textContent = 'Make PDF'; return; }
-    pdfReady(out);
+    shareReady(out);
   };
 }
 
 /* The PDF is ready: share it (with the message) or download it. Sharing needs a fresh tap, so it gets its own button. */
-function pdfReady({ blob, name, text }) {
-  const body = openSheet('PDF ready', `
+function shareReady({ blob, name, text, kind = 'PDF', mime = 'application/pdf', title = 'TASC Connect · Pending visits' }) {
+  const body = openSheet(kind + ' ready', `
     <p class="muted" style="margin-top:0">${esc(name)} · ${Math.max(1, Math.round(blob.size / 1024))} KB</p>
     <label class="f">Message sent with it</label>
     <textarea class="input" id="pr-msg" rows="9" style="font-size:14px">${esc(text)}</textarea>
     <div class="stack" style="margin-top:12px">
-      <button class="btn block" id="pr-share">${ICON.wa} Share PDF with message</button>
-      <div class="row"><button class="btn ghost grow" id="pr-copy">Copy message</button><button class="btn ghost grow" id="pr-dl">Download PDF</button></div>
+      <button class="btn block" id="pr-share">${ICON.wa} Share ${kind} with message</button>
+      <div class="row"><button class="btn ghost grow" id="pr-copy">Copy message</button><button class="btn ghost grow" id="pr-dl">Download ${kind}</button></div>
     </div>
-    <p class="hint">If WhatsApp shows only the PDF, long-press in the chat and Paste: the message is copied when you share.</p>`);
+    <p class="hint">If WhatsApp shows only the ${kind.toLowerCase()}, long-press in the chat and Paste: the message is copied when you share.</p>`);
   const msg = () => $('#pr-msg', body).value;
   const copy = async () => { try { await navigator.clipboard.writeText(msg()); return true; } catch (e) { return false; } };
-  const file = new File([blob], name, { type: 'application/pdf' });
+  const file = new File([blob], name, { type: mime });
   const download = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
   $('#pr-copy', body).onclick = async () => toast(await copy() ? 'Message copied' : 'Could not copy. Select the text and copy it.');
-  $('#pr-dl', body).onclick = () => { download(); toast('PDF downloaded'); };
+  $('#pr-dl', body).onclick = () => { download(); toast(kind + ' downloaded'); };
   $('#pr-share', body).onclick = async () => {
     const copied = await copy();
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], text: msg(), title: 'TASC Connect · Pending visits' }); if (copied) toast('Shared. Message also copied, paste it if it is missing.', 3500); return; }
+      try { await navigator.share({ files: [file], text: msg(), title }); if (copied) toast('Shared. Message also copied, paste it if it is missing.', 3500); return; }
       catch (e) { if (e.name === 'AbortError') return; }
     }
-    download(); toast(copied ? 'PDF downloaded and message copied' : 'PDF downloaded', 3000);
+    download(); toast(copied ? kind + ' downloaded and message copied' : kind + ' downloaded', 3000);
   };
 }
 
@@ -479,8 +479,10 @@ function askSummaryImage(M, f, D) {
     <button class="btn block" id="si-go">Make image</button>`);
   $('#si-go', body).onclick = async () => {
     const b = $('#si-go', body); b.disabled = true; b.textContent = 'Preparing…';
-    try { await summaryImage(M, f, D, $('#si-ro', body).checked); closeSheet(); }
-    catch (e) { toast(errText(e)); b.disabled = false; b.textContent = 'Make image'; }
+    let out;
+    try { out = await summaryImage(M, f, D, $('#si-ro', body).checked); }
+    catch (e) { toast(errText(e)); b.disabled = false; b.textContent = 'Make image'; return; }
+    shareReady(out);
   };
 }
 async function summaryImage(M, f, D, withRO) {
@@ -551,13 +553,13 @@ async function summaryImage(M, f, D, withRO) {
   txt('TASC Connect · Central Bank of India · via PDUDAIRO', W / 2, H - 44, { f: sans(500, 22), c: P.faint, a: 'center' });
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   const name = `TASC-Connect-summary-${todayISO()}.png`;
-  const file = new File([blob], name, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: 'TASC Connect visit report' }); return; } catch (e) { if (e.name === 'AbortError') return; }
-  }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  toast('Summary image downloaded');
+  const day = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const text = `*TASC Connect · Visit report* (${day})\n`
+    + `Allotted: ${N.total} · Visited: ${M.visited} (${pct(M.visited, N.total)}%) · Overdue: ${N.overdue} · Due ${shortDay(M.tmr)}: ${dueT}\n\n`
+    + `Please complete your pending visits and submit the visit reports.\n`
+    + `To view or submit your visits, open TASC Connect, tap *Sign in with your name*, select your name and enter your date of birth:\n`
+    + `${daoraLink()}\n\n– Regional Office, Udaipur`;
+  return { blob, name, text, kind: 'Image', mime: 'image/png', title: 'TASC Connect · Visit report' };
 }
 
 /* ───────── Excel export (SheetJS, loaded only when needed) ───────── */
