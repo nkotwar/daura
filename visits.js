@@ -11,7 +11,7 @@ async function viewVisits() {
     { id: 'mine', label: 'My visits', badge: 'vn-mine', draw: el => drawMine(el) },
     ...(me.is_branch_head ? [{ id: 'staff', label: 'My Staff Visits', badge: 'vn-staff', draw: el => drawStaffVisits(el) }] : []),
     { id: 'places', label: 'Places', badge: 'vn-places', draw: el => drawPlaces(el) },
-    ...(S.who.viewer && !S.who.admin ? [{ id: 'people', label: 'People', badge: 'vn-people', draw: el => drawPeople(el, 'viewer') }] : [])
+    ...(S.who.viewer ? [{ id: 'people', label: 'People', badge: 'vn-people', draw: el => drawPeople(el, S.who.admin ? 'admin' : 'viewer') }] : [])   // admin: same People as in the Admin tab
   ];
   const old = $('#v-host', main);
   if (old && old._pager && old._pager.ids === panes.map(p => p.id).join(',')) {   // already built: refresh quietly
