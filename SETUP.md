@@ -111,7 +111,7 @@ The job also writes the date into `.github/keepalive.txt`. That keeps the repo a
 
 1. Open `https://nkotwar.github.io/tasc-connect/` in Chrome → menu ⋮ → **Add to Home screen / Install app**.
 2. Open it from the home-screen icon → **Sign in with Google** → choose **nkotwar@gmail.com**. You land straight in, as admin.
-3. **Admin → People**: everyone is listed, with who has signed up. Tap anyone for **Call** or **Invite on WhatsApp**.
+3. **Visits → People**: everyone is listed, with who has signed up. Tap anyone for **Call** or **Invite on WhatsApp**.
 
 ## How staff get in
 
@@ -127,7 +127,7 @@ To switch on name sign-in (once): Supabase → **Authentication → Sign In / Pr
 ## Updating later
 
 - **Allotting**: Places → **+ Add a new place** has an Allotment part for admins (who, visit by, campaign, note). Any place page has **Allot this place** or **Reallot or change date**.
-- **New udairo.js**: Admin → People → **Upload udairo.js**. You see who is new, who moved and who left before you apply. Nobody's history is lost.
+- **New udairo.js**: Visits → People → **Upload udairo.js**. You see who is new, who moved and who left before you apply. Nobody's history is lost.
 - **New app version**: upload the changed files and raise the number in `version.js`. Phones then show **Update now** in Profile.
 
 ## Moving photos to Drive
@@ -195,6 +195,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 56 | Outcome "Already our customer" now: sets Banks with to Our bank, asks for their existing account number(s) (required), and closes the lead as the new status "Existing customer" (no follow-up). Existing account numbers are kept apart from accounts opened, so they are not counted as business from the visit. With Our bank and any other outcome, the existing account box is optional. Reports already submitted are not changed (an edit applies the rule only if the outcome is changed). Dashboard and Excel show existing customers separately | Run `sql/21_update_v56.sql` before staff update. Older app versions keep the old behaviour and show the new status as a blank "Closed:" label until updated |
 | 57 | Existing account number(s) box shows right under Outcome when the outcome is Already our customer (required); with Our bank and any other outcome it stays under Their banking (optional). One box, same numbers | Nothing to run |
 | 58 | Admin also gets the People subtab in the Visits tab (same list and actions as Admin → People, which stays) | Nothing to run |
+| 59 | People removed from the Admin tab; it lives in Visits → People for the admin (full controls) and viewers (read-only). Admin tab now opens on Verify | Nothing to run |
 
 ---
 

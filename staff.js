@@ -1,5 +1,5 @@
 /* TASC Connect · one staff member's work: summary numbers, every place allotted to them with its current status,
-   and their own (self-initiated) visits. Used in Admin → People and Dashboard → Officers. */
+   and their own (self-initiated) visits. Used in Visits → People and Dashboard → Officers. */
 
 async function loadStaffWork(el, emp) {
   // all from the phone's copy: no database call

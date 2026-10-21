@@ -7,7 +7,6 @@ async function viewAdmin() {
   if (!S.who.admin) { TV().innerHTML = '<div class="empty">Admins only.</div>'; return; }
   await loadBasics();
   const panes = [
-    { id: 'people', label: 'People', badge: 'an-people', draw: () => admPeople(false) },
     { id: 'verify', label: 'Verify', badge: 'an-verify', draw: () => admVerify() },
     { id: 'requests', label: 'Requests', badge: 'an-requests', draw: () => admRequests() },
     { id: 'activity', label: 'Activity', badge: 'an-activity', draw: () => admActivity() }
@@ -16,7 +15,7 @@ async function viewAdmin() {
   if (old && old._pager) { await old._pager.refresh(); adminBadges(); return; }
   TV().innerHTML = `${S.updateReady ? updateBar() : ''}<div id="adm-host"></div>`;
   bindUpdate();
-  mountPager($('#adm-host', TV()), panes, S.cache.adminSeg || 'people', id => { S.cache.adminSeg = id; remember(); });
+  mountPager($('#adm-host', TV()), panes, panes.some(p => p.id === S.cache.adminSeg) ? S.cache.adminSeg : 'verify', id => { S.cache.adminSeg = id; remember(); });
   adminBadges();
 }
 
@@ -93,9 +92,10 @@ async function admRequests() {
 }
 
 /* ───────── People ───────── */
-async function admPeople(fresh = true) { return drawPeople(admPane('people'), 'admin', fresh); }
+/* People lives in the Visits tab (admin and viewers); after an admin action, redraw it there */
+async function admPeople(fresh = true) { const el = $('#main > .tabview[data-tab="visits"] .pane[data-pane="people"]'); if (el) return drawPeople(el, 'admin', fresh); }
 
-/* People list. mode 'admin' (Admin → People: full controls) or 'viewer' (Visits → People: read-only).
+/* People list. mode 'admin' (admin, in Visits → People: full controls) or 'viewer' (Visits → People: read-only).
    Pills: Due, All, Signed up, Not yet, Branch heads, Viewers & admins (+ Blocked, Inactive for admin); a branch dropdown. */
 async function drawPeople(el, mode, fresh = true) {
   const adm = mode === 'admin';
