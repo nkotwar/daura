@@ -108,7 +108,7 @@ async function drawMine(el, noFetch) {
 
   // follow-ups (shown in All), any date: the latest visit to each place, if it is mine, has a follow-up date and the lead is open
   const latest = new Map();
-  all('visits').forEach(v => { const c = latest.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latest.set(v.entity_id, v); });
+  liveVisits().forEach(v => { const c = latest.get(v.entity_id); if (!c || v.visit_no > c.visit_no) latest.set(v.entity_id, v); });
   const meId = S.who.me.emp_id;
   const due = [...latest.values()].filter(v => v.visitor === meId && v.followup_on && !v.closure).map(withEntity).sort((x, y) => x.followup_on.localeCompare(y.followup_on));
 
@@ -155,7 +155,7 @@ function qBranchWork() {
   const me = S.who.me;
   const team = new Set([...S.dir.values()].filter(p => p.branch_code === me.branch_code).map(p => p.emp_id)); team.add(me.emp_id);
   const asg = openAsg().filter(a => team.has(a.assignee)).map(withEntity).sort((a, b) => (a.scheduled_on || '').localeCompare(b.scheduled_on || ''));
-  const vis = all('visits').filter(v => team.has(v.visitor)).map(withEntity);
+  const vis = liveVisits().filter(v => team.has(v.visitor)).map(withEntity);
   const hold = new Map([...DB.holds].map(id => [id, all('requests').find(r => r.assignment_id === id && r.status === 'pending') || {}]));
   const cover = new Map();
   const own = new Set(vis.filter(v => v.assignment_id).map(v => v.assignment_id));

@@ -123,13 +123,17 @@ const branchName = code => (get('branches', code) || {}).name || '';
 /* ───────── questions screens ask ───────── */
 const withEntity = r => r && ({ ...r, entity: get('entities', r.entity_id) || { id: r.entity_id, name: '(place removed)', type: '' } });
 const visitsOf = entityId => all('visits').filter(v => v.entity_id === entityId).sort((a, b) => a.visit_no - b.visit_no);
-const openAsg = () => all('assignments').filter(a => a.status === 'open');
+/* A place the admin marked as a duplicate keeps everything, but shows only in Places → Duplicates and on its own page */
+const isDup = entityId => !!(get('entities', entityId) || {}).is_duplicate;
+const openAsgAll = () => all('assignments').filter(a => a.status === 'open');
+const openAsg = () => openAsgAll().filter(a => !isDup(a.entity_id));
+const liveVisits = () => all('visits').filter(v => !isDup(v.entity_id));
 
 /* My work: allotments, my visits, my pending requests, what is on hold, what a colleague already visited */
 function qMyWork() {
   const me = S.who.me.emp_id;
   const asg = openAsg().filter(a => a.assignee === me).map(withEntity).sort((a, b) => (a.scheduled_on || '').localeCompare(b.scheduled_on || ''));
-  const vis = all('visits').filter(v => v.visitor === me).map(withEntity).sort((a, b) => (b.visited_at || '').localeCompare(a.visited_at || ''));
+  const vis = liveVisits().filter(v => v.visitor === me).map(withEntity).sort((a, b) => (b.visited_at || '').localeCompare(a.visited_at || ''));
   const req = all('requests').filter(r => r.raised_by === me && r.status === 'pending');
   const hold = new Map(req.filter(r => r.assignment_id).map(r => [r.assignment_id, r]));
   const mineDone = new Set(vis.filter(v => v.assignment_id).map(v => v.assignment_id));
@@ -149,7 +153,7 @@ function qTimeline(entityId) {
 /* Who a place is allotted to, and who visited it */
 function qAssignees(entityId) {
   const vs = visitsOf(entityId);
-  return openAsg().filter(a => a.entity_id === entityId).sort((a, b) => (a.scheduled_on || '').localeCompare(b.scheduled_on || '')).map(a => {
+  return openAsgAll().filter(a => a.entity_id === entityId).sort((a, b) => (a.scheduled_on || '').localeCompare(b.scheduled_on || '')).map(a => {
     const fv = vs.find(v => v.assignment_id === a.id) || vs.find(v => v.visitor !== a.assignee);
     const p = S.dir.get(a.assignee) || {};
     return { assignment_id: a.id, emp_id: a.assignee, name: p.name || 'Emp ' + a.assignee, designation: p.designation, branch: p.branch, scheduled_on: a.scheduled_on,
@@ -167,7 +171,7 @@ const qMyPendingFor = visitId => all('requests').find(r => r.visit_id === visitI
 /* Everything the dashboard needs */
 function qDash() {
   return { at: DB.at, asg: openAsg().map(a => ({ ...a, entity: get('entities', a.entity_id) || { id: a.entity_id, name: '—', type: '' } })),
-    vis: all('visits').map(withEntity), branches: all('branches'), camps: all('campaigns').sort((a, b) => a.id - b.id), hold: DB.holds };
+    vis: liveVisits().map(withEntity), branches: all('branches'), camps: all('campaigns').sort((a, b) => a.id - b.id), hold: DB.holds };
 }
 /* Admin: requests with what they are about */
 function qRequests() {

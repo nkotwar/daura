@@ -4,10 +4,10 @@
 async function loadStaffWork(el, emp) {
   // all from the phone's copy: no database call
   const asg = openAsg().filter(a => a.assignee === emp).map(withEntity).sort((a, b) => (a.scheduled_on || '').localeCompare(b.scheduled_on || ''));
-  const vis = all('visits').filter(v => v.visitor === emp).map(withEntity).sort((a, b) => (b.visited_at || '').localeCompare(a.visited_at || ''));
+  const vis = liveVisits().filter(v => v.visitor === emp).map(withEntity).sort((a, b) => (b.visited_at || '').localeCompare(a.visited_at || ''));
   const req = all('requests').filter(r => r.raised_by === emp && r.status === 'pending');
   const ids = new Set(asg.map(a => a.entity.id));
-  const others = all('visits').filter(v => ids.has(v.entity_id) && v.visitor !== emp).sort((a, b) => a.visit_no - b.visit_no);
+  const others = liveVisits().filter(v => ids.has(v.entity_id) && v.visitor !== emp).sort((a, b) => a.visit_no - b.visit_no);
   const otherFirst = new Map(); others.forEach(v => { if (!otherFirst.has(v.entity_id)) otherFirst.set(v.entity_id, v); });
   const today = todayISO();
   const byAsg = new Map(); vis.forEach(v => { if (v.assignment_id) { const c = byAsg.get(v.assignment_id); if (!c || v.visit_no < c.visit_no) byAsg.set(v.assignment_id, v); } });

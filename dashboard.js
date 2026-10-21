@@ -300,7 +300,7 @@ async function loadGallery(f, M, limit = 6) {
     const ids = new Set(M.vis.map(v => v.id));
     const filtered = f.camp || f.type || f.branch;
     let rows = all('photos').sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-    if (filtered) rows = rows.filter(p => ids.has(p.visit_id));
+    rows = filtered ? rows.filter(p => ids.has(p.visit_id)) : rows.filter(p => { const v = get('visits', p.visit_id); return v && !isDup(v.entity_id); });
     rows = rows.slice(0, limit);
     if (!rows.length) { el.innerHTML = '<div class="hint" style="grid-column:1/-1">No photos yet.</div>'; return; }
     const urls = await signedThumbs(rows.map(p => p.path));

@@ -25,28 +25,32 @@ async function drawPlaces(el) {
   if (!el.children.length || el.querySelector(':scope > .spin')) el.innerHTML = '<div class="spin"></div>';
   let list;
   try { list = await loadEntities(); } catch (e) { el.innerHTML = `<div class="empty">${esc(errText(e))}</div>`; return; }
+  const dups = list.filter(e => e.is_duplicate), seeDup = S.who.admin || S.who.viewer;
+  list = list.filter(e => !e.is_duplicate);   // duplicates show only under their own pill (admin and viewers)
   const { sets, rows } = placeSets(list);
+  if (seeDup && dups.length) sets.dup = new Set(dups.map(e => e.id));
   const info = placeInfo(rows);
   let f = S.cache.placeF || 'all'; if (f !== 'all' && !sets[f]) f = 'all';
   const count = k => k === 'all' ? list.length : sets[k].size;
+  const pills = PLACE_PILLS.concat(sets.dup ? [['dup', 'Duplicates']] : []);
   el.innerHTML = `<div class="row" style="margin-bottom:10px;gap:8px"><div class="search grow" style="margin:0">${ICON.search}<input class="input" id="eq" type="search" placeholder="Search places" value="${esc(S.cache.placeQ || '')}" autocomplete="off"></div>
       <button class="btn soft" id="addp" style="flex:none;min-height:44px;padding:0 14px">+ Add place</button></div>
-    <div class="chips wrap" id="pf">${PLACE_PILLS.map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''} ${k === 'overdue' && count(k) && f !== k ? 'hot' : ''}" data-pf="${k}">${l}<b>${count(k)}</b></button>`).join('')}</div>
+    <div class="chips wrap" id="pf">${pills.map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''} ${k === 'overdue' && count(k) && f !== k ? 'hot' : ''}" data-pf="${k}">${l}<b>${count(k)}</b></button>`).join('')}</div>
     <div class="list" id="el"></div>`;
   const draw = () => {
     const t = $('#eq').value.trim().toLowerCase(); S.cache.placeQ = t;
-    let rs = list.filter(e => (f === 'all' || sets[f].has(e.id)) && (!t || (e.name + ' ' + (e.area || '') + ' ' + e.type + ' ' + (e.address || '')).toLowerCase().includes(t)));
+    let rs = (f === 'dup' ? dups : list).filter(e => (f === 'all' || sets[f].has(e.id)) && (!t || (e.name + ' ' + (e.area || '') + ' ' + e.type + ' ' + (e.address || '')).toLowerCase().includes(t)));
     if (f === 'overdue') rs.sort((a, b) => (info.get(b.id)?.late || 0) - (info.get(a.id)?.late || 0));
     const more = rs.length > 150 ? rs.length - 150 : 0; rs = rs.slice(0, 150);
     $('#el').innerHTML = rs.length ? rs.map(e => `<button class="item" data-e="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div>
-        <div class="s">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}</div>${placeLine(e, info.get(e.id))}</div>${placeBadge(e, info.get(e.id))}</button>`).join('')
+        <div class="s">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}</div>${e.is_duplicate ? (e.duplicate_note ? `<div class="s">${esc(e.duplicate_note)}</div>` : '') : placeLine(e, info.get(e.id))}</div>${e.is_duplicate ? '<span class="badge">Duplicate</span>' : placeBadge(e, info.get(e.id))}</button>`).join('')
         + (more ? `<div class="item" style="cursor:default"><span class="hint">and ${more} more. Search to narrow.</span></div>` : '')
       : emptyState(ICON.search, t ? 'No place by that name' : 'Nothing here', t ? 'Check the spelling, or add it as a new place with the button below.' : 'No places in this group right now.');
   };
   draw();
   $('#eq').oninput = draw;
   $$('[data-pf]', el).forEach(b => b.onclick = () => { S.cache.placeF = b.dataset.pf; drawPlaces(el); });
-  $('#el').onclick = ev => { const b = ev.target.closest('[data-e]'); if (b) openPlace(list.find(e => e.id === b.dataset.e)); };
+  $('#el').onclick = ev => { const b = ev.target.closest('[data-e]'); if (b) openPlace(get('entities', b.dataset.e)); };
   $('#addp').onclick = () => openNewPlace($('#eq').value.trim());
 }
 
@@ -107,7 +111,7 @@ function goPlaces(pill) {
 
 async function openNewPlace(prefill = '') {
   await loadBasics();
-  const list = await loadEntities();
+  const list = (await loadEntities()).filter(e => !e.is_duplicate);
   const body = openSheet('Add a new place', `
     <label class="f" for="np-n">Name</label><input class="input" id="np-n" value="${esc(prefill)}" autocomplete="off">
     <div id="np-dup"></div>
@@ -174,7 +178,9 @@ async function openPlace(e, assignment) {
   else action = `<div class="note">A follow-up can be added once Visit ${latest.visit_no} is verified.</div>`;
   const myAsg = assignment && assignment.status === 'open' && me && !asgVisited;
   const held = myAsg && S.cache.visits && S.cache.visits.hold && S.cache.visits.hold.get(assignment.id);
-  if (held && !latest) action = `<div class="note warn lockednote">${ICON.lock}<div><b>Locked: request pending.</b> You asked to ${held.kind === 'reassign' ? 'reassign' : 'remove'} this visit
+  const dup = !!e.is_duplicate;
+  if (dup) action = `<div class="note"><b>Marked as duplicate</b>${e.duplicate_at ? ' · ' + fmtDate(e.duplicate_at) : ''}${e.duplicate_note ? `<br>${esc(e.duplicate_note)}` : ''}<br><span class="hint">It is left out of every list and count except Places → Duplicates. Nothing on it has been removed.</span></div>`;
+  else if (held && !latest) action = `<div class="note warn lockednote">${ICON.lock}<div><b>Locked: request pending.</b> You asked to ${held.kind === 'reassign' ? 'reassign' : 'remove'} this visit
     ${ago(held.created_at)}: "${esc(held.reason)}". It stays off your overdue list, and you can log it or ask again after the admin decides.</div></div>`;
 
   body.innerHTML = `
@@ -195,12 +201,14 @@ async function openPlace(e, assignment) {
         <div class="grow"><div class="t">${esc(cleanName(v.visitor))}</div><div class="s">${fmtDateTime(v.visited_at)} · ${esc(v.outcome || closureLabel(v.closure) || '—')}${v.next_step ? ' · Next: ' + esc(v.next_step) : ''}</div></div>
         <span class="badge ${v.status === 'verified' ? 'ok' : v.status === 'returned' ? 'bad' : 'warn'}">${v.status === 'verified' ? 'Verified' : v.status === 'returned' ? 'Sent back' : 'Submitted'}</span>${v.can_open ? `<span class="chev">${ICON.chev}</span>` : ''}</button>`).join('')}</div>`
       : '<p class="hint">Not visited yet.</p>'}
-    ${myAsg && !held ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}
-    ${S.who.admin || (me && e.created_by === me.emp_id && !tl.length) ? `<div class="spacer"></div><button class="btn ghost block small" id="pl-del" style="color:var(--bad)">Delete this place</button>`
+    ${myAsg && !held && !dup ? `<h2>Your allotment</h2><div class="row"><button class="btn ghost grow small" id="pl-reas">Ask to reassign</button><button class="btn ghost grow small" id="pl-rem">Ask to remove</button></div>` : ''}
+    ${S.who.admin ? `<div class="spacer"></div><button class="btn ghost block small" id="pl-dup">${dup ? 'Mark as not duplicate' : 'Mark as duplicate'}</button>` : ''}
+    ${S.who.admin || (me && e.created_by === me.emp_id && !tl.length) ? `${S.who.admin ? '' : '<div class="spacer"></div>'}<button class="btn ghost block small" id="pl-del" style="color:var(--bad)${S.who.admin ? ';margin-top:8px' : ''}">Delete this place</button>`
       : me && e.created_by === me.emp_id ? '<p class="hint" style="text-align:center;margin-top:16px">You added this place. To delete it, first delete its visit report.</p>' : ''}`;
 
   loadAssignees($('#pl-asg', body), e.id);
   if ($('#pl-del', body)) $('#pl-del', body).onclick = () => deletePlace(e);
+  if ($('#pl-dup', body)) $('#pl-dup', body).onclick = () => markDuplicate(e, !dup);
   const go = (nextNo) => openVisitForm({ entity: e, assignment: myAsg && !held ? assignment : null, nextNo });
   if ($('#pl-log', body)) $('#pl-log', body).onclick = () => go(1);
   if ($('#pl-fu', body)) $('#pl-fu', body).onclick = () => go(latest.visit_no + 1);
@@ -215,6 +223,29 @@ async function openPlace(e, assignment) {
   $$('[data-v]', body).forEach(b => b.onclick = () => openVisit(b.dataset.v));
   if ($('#pl-reas', body)) $('#pl-reas', body).onclick = () => askRequest('reassign', null, assignment.id, `Reassign ${e.name}`, 'Why should someone else visit? e.g. not in my area, I am on leave');
   if ($('#pl-rem', body)) $('#pl-rem', body).onclick = () => askRequest('delete_assignment', null, assignment.id, `Remove ${e.name}`, 'Why should this visit be removed? e.g. closed down, duplicate, not relevant');
+}
+
+/* Admin: mark a place as a duplicate (or not). Nothing is removed; it is only left out of lists and counts. */
+async function markDuplicate(e, on) {
+  const body = openSheet(on ? 'Mark as duplicate?' : 'Mark as not duplicate?', on ? `
+    <p style="margin-top:0"><b>${esc(e.name)}</b> will be left out of To do, pendency, the Dashboard, reports and exports. It stays in Places → Duplicates, with its allotment and visit reports as they are. You can unmark it any time.</p>
+    <label class="f" for="dp-n">Note <span class="hint">(optional)</span></label>
+    <input class="input" id="dp-n" placeholder="e.g. Same as Govt School, Hiran Magri">
+    <p class="hint" id="dp-err" style="color:var(--bad)"></p>
+    <button class="btn block" id="dp-go">Mark as duplicate</button>` : `
+    <p style="margin-top:0"><b>${esc(e.name)}</b> comes back everywhere, with its allotment and visit reports as they were.</p>
+    <p class="hint" id="dp-err" style="color:var(--bad)"></p>
+    <button class="btn block" id="dp-go">Mark as not duplicate</button>`);
+  $('#dp-go', body).onclick = async () => {
+    const b = $('#dp-go', body); b.disabled = true;
+    try {
+      const r = await rpc('admin_set_duplicate', { p_entity: e.id, p_dup: on, p_note: on ? ($('#dp-n', body).value.trim() || null) : null });
+      patch('entities', e.id, r);
+      toast(on ? 'Marked as duplicate' : 'Marked as not duplicate');
+      if (VIEWS[S.tab]) VIEWS[S.tab]();   // lists and counts follow the mark
+      openPlace(get('entities', e.id));
+    } catch (err) { b.disabled = false; $('#dp-err', body).textContent = errText(err); }
+  };
 }
 
 /* Admin: delete a place, with its allotments and visit reports */
@@ -369,7 +400,7 @@ function refreshCurrent() { closeSheet(); if (VIEWS[S.tab]) VIEWS[S.tab](); }
 /* The admin's note on an allotment: shown to the person it is allotted to, and to admins */
 function allotNote(entityId) {
   const me = S.who.me && S.who.me.emp_id;
-  const rows = openAsg().filter(a => a.entity_id === entityId && a.note && (S.who.admin || a.assignee === me));
+  const rows = openAsgAll().filter(a => a.entity_id === entityId && a.note && (S.who.admin || a.assignee === me));
   return rows.map(a => `<div class="note" style="margin-bottom:10px"><b>Note from the Regional Office${S.who.admin && a.assignee !== me ? ' for ' + esc(personName(a.assignee)) : ''}:</b> ${esc(a.note)}</div>`).join('');
 }
 
@@ -380,7 +411,7 @@ async function loadAssignees(el, entityId) {
   const ent = get('entities', entityId);
   if (!rows.length) {
     el.innerHTML = '<p class="hint" style="margin:12px 0 0">Not allotted to anyone. Anyone can visit and log it.</p>'
-      + (S.who.admin && ent && !ent.closure ? '<button class="btn soft block" id="pl-allot" style="margin-top:8px">Allot this place</button>' : '');
+      + (S.who.admin && ent && !ent.closure && !ent.is_duplicate ? '<button class="btn soft block" id="pl-allot" style="margin-top:8px">Allot this place</button>' : '');
     const b = $('#pl-allot', el); if (b) b.onclick = () => openAllot(ent);
     return;
   }
@@ -396,7 +427,7 @@ async function loadAssignees(el, entityId) {
       <div class="grow"><div class="t">${esc(cleanName(r.name))}${me ? ' (you)' : ''}</div><div class="s">${esc(r.designation || '')}${r.branch ? ' · ' + esc(r.branch) : ''}${
         r.visited_by_emp && r.visited_by_emp !== r.emp_id ? `<br><b>Visited by ${S.who.me && r.visited_by_emp === S.who.me.emp_id ? 'you' : esc(cleanName(r.visited_by))}</b> · ${fmtDate(r.visited_at)}` : ''}</div></div>
       ${st}${canOpen ? `<span class="chev">${ICON.chev}</span>` : ''}</${canOpen ? 'button' : 'div'}>`; }).join('')}</div>${dbNote}
-    ${S.who.admin ? rows.filter(r => !r.visited).map(r => `<button class="btn soft block" data-realot="${r.assignment_id}" style="margin-top:8px">Reallot or change date${rows.length > 1 ? ' · ' + esc(cleanName(r.name)) : ''}</button>`).join('') : ''}`;
+    ${S.who.admin && !(ent && ent.is_duplicate) ? rows.filter(r => !r.visited).map(r => `<button class="btn soft block" data-realot="${r.assignment_id}" style="margin-top:8px">Reallot or change date${rows.length > 1 ? ' · ' + esc(cleanName(r.name)) : ''}</button>`).join('') : ''}`;
   $$('[data-st]', el).forEach(b => b.onclick = () => openStaff(+b.dataset.st));
   $$('[data-realot]', el).forEach(b => b.onclick = () => openAllot(ent, b.dataset.realot));
 }

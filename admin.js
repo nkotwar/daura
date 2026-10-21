@@ -21,7 +21,7 @@ async function viewAdmin() {
 }
 
 async function adminBadges() {
-  const rq = all('requests').filter(r => r.status === 'pending').length, vf = all('visits').filter(v => v.status === 'submitted').length;
+  const rq = all('requests').filter(r => r.status === 'pending').length, vf = liveVisits().filter(v => v.status === 'submitted').length;
   const a = $('#an-requests'); if (a) a.textContent = rq ? ` · ${rq}` : '';
   const b = $('#an-verify'); if (b) b.textContent = vf ? ` · ${vf}` : '';
 }
@@ -29,7 +29,7 @@ async function adminBadges() {
 /* ───────── Verify (admin) ─────────
    Every report waiting for a check, oldest first. Only the admin verifies. */
 async function admVerify() {
-  const rows = all('visits').filter(v => v.status === 'submitted').map(withEntity).sort((a, b) => (a.visited_at || '').localeCompare(b.visited_at || ''));
+  const rows = liveVisits().filter(v => v.status === 'submitted').map(withEntity).sort((a, b) => (a.visited_at || '').localeCompare(b.visited_at || ''));
   const bname = new Map(all('branches').map(b => [b.code, b.name]));
   admPane('verify').innerHTML = rows.length ? `<p class="hint" style="margin-top:0">${rows.length} report${rows.length > 1 ? 's' : ''} waiting, oldest first. Open one, look at the photos and details, then tap <b>Verify</b>.</p>
     <div class="list">${rows.map(v => `<button class="item" data-v="${v.id}">
@@ -157,7 +157,7 @@ async function drawPeople(el, mode, fresh = true) {
 /* Allotments not visited yet (by them or a colleague), per person: { n, late } — from the phone's copy */
 function pendingByEmp() {
   const today = todayISO(), m = new Map();
-  const vs = all('visits').filter(v => v.status !== 'returned'), byAsg = new Set(vs.filter(v => v.assignment_id).map(v => v.assignment_id));
+  const vs = liveVisits().filter(v => v.status !== 'returned'), byAsg = new Set(vs.filter(v => v.assignment_id).map(v => v.assignment_id));
   const held = new Set(all('requests').filter(r => r.status === 'pending' && r.assignment_id).map(r => r.assignment_id));
   for (const a of openAsg()) {
     if (byAsg.has(a.id) || held.has(a.id)) continue;
@@ -290,15 +290,17 @@ const ACT = {
   request_decided: (a) => `${a.detail?.approved ? 'approved' : 'declined'} a request`,
   assignment_reassigned: (a) => a.detail?.entity ? `reallotted ${esc(a.detail.entity)} to ${esc(cleanName(a.target_name || personName(+a.detail.to)))}` : 'reassigned a visit',
   place_reopened: () => 'reopened a closed place',
+  place_duplicate: (a) => `marked ${esc(a.detail?.entity || 'a place')} as duplicate${a.detail?.note ? `: "${esc(a.detail.note)}"` : ''}`,
+  place_not_duplicate: (a) => `marked ${esc(a.detail?.entity || 'a place')} as not duplicate`,
   place_deleted: (a) => `deleted the place ${esc(a.detail?.entity || '')}${a.detail?.visits ? ` with ${a.detail.visits} visit report${a.detail.visits > 1 ? 's' : ''}` : ''}`
 };
 /* What each filter shows */
 const ACT_KINDS = {
-  attention: ['Attention', ['claim_failed', 'person_blocked', 'person_unblocked', 'role_set', 'login_unlinked', 'place_deleted']],
+  attention: ['Attention', ['claim_failed', 'person_blocked', 'person_unblocked', 'role_set', 'login_unlinked', 'place_deleted', 'place_duplicate', 'place_not_duplicate']],
   all: ['All', null],
   visits: ['Visits', ['visit_logged', 'visit_verified', 'visit_unverified', 'visit_returned', 'visit_resubmitted', 'request_raised', 'request_decided']],
   people: ['People', ['login_linked', 'login_unlinked', 'claim_failed', 'role_set', 'person_blocked', 'person_unblocked', 'directory_imported']],
-  places: ['Places', ['allotted', 'assignment_reassigned', 'place_reopened', 'place_deleted']]
+  places: ['Places', ['allotted', 'assignment_reassigned', 'place_reopened', 'place_deleted', 'place_duplicate', 'place_not_duplicate']]
 };
 /* A run of 3+ of these by the same person within 30 minutes shows as one line you can open */
 const ACT_BULK = { allotted: ['allotted', 'places'], visit_verified: ['verified', 'visits'], visit_logged: ['logged', 'visits'],
