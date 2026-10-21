@@ -53,7 +53,8 @@ function formHTML(F, no) {
     <div class="seg" id="f-bank" style="margin-bottom:0">${[['us', 'Our bank'], ['other', 'Other bank'], ['none', 'None / not known']].map(([k, l]) =>
       `<button type="button" data-v="${k}" class="${F.banking_with === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="f-obw" ${F.banking_with === 'other' ? '' : 'hidden'}><label class="f" for="f-ob">Which bank(s)</label><input class="input" id="f-ob" value="${esc(F.other_bank)}" placeholder="e.g. SBI, HDFC"></div>
-    <p class="hint" id="f-banklock" hidden>Set to Our bank because the outcome is Already our customer.</p>
+    <p class="hint" id="f-banklock" hidden>Set to Our bank by the outcome (Already our customer). Their account number is asked under Outcome.</p>
+    <div id="f-exbank"></div>
     <div id="f-exw" ${F.banking_with === 'us' ? '' : 'hidden'}><label class="f">Existing account number(s) <span class="hint" id="f-exreq">(optional)</span></label><div id="f-exs"></div>
       <button type="button" class="linkbtn" id="f-exadd">+ Add another account</button>
       <p class="hint" style="margin-top:4px">Accounts they already have with us. These are not counted as accounts opened.</p></div>
@@ -70,6 +71,7 @@ function formHTML(F, no) {
   <div class="fs"><h4>Outcome</h4>
     <label class="f" for="f-out">Outcome</label>
     <select class="input" id="f-out"><option value="">Choose…</option>${outcomes.map(o => `<option ${F.outcome === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+    <div id="f-exout"></div>
     <label class="f" for="f-rem">Remarks</label><textarea class="input" id="f-rem" rows="3">${esc(F.remarks)}</textarea>
     <div id="f-fuw">
       <label class="f" for="f-next">Next step</label><input class="input" id="f-next" value="${esc(F.next_step)}">
@@ -205,6 +207,9 @@ function bindForm(body, F) {
     $$('#f-bank button', body).forEach(x => { x.disabled = !!F.custLock && x.dataset.v !== 'us'; });
     $b('#f-banklock').hidden = !F.custLock;
     $b('#f-exreq').textContent = F.custLock ? '(required)' : '(optional)';
+    // one box: under Outcome for "Already our customer", else under Their banking (same numbers either way)
+    const box = $b('#f-exw'), home = F.custLock ? $b('#f-exout') : $b('#f-exbank');
+    if (box.previousElementSibling !== home) home.after(box);
     drawBank(); drawClose();
   };
   // follow-up rules: none for a closed lead or an existing customer; required for Interested / Follow-up needed / Person not available
