@@ -60,7 +60,7 @@ function dashModel(D, f) {
     potential: [...latest.values()].reduce((s, v) => s + (+v.potential_rs || 0), 0),
     mobilised: opened.reduce((s, v) => s + (+v.mobilised_rs || 0), 0),
     accounts: opened.reduce((s, v) => s + (v.account_numbers || []).length, 0),
-    opened: opened.length, rejected: vis.filter(v => v.closure === 'rejected').length, notFeasible: vis.filter(v => v.closure === 'not_feasible').length,
+    opened: opened.length, existing: vis.filter(v => v.closure === 'existing_customer').length, rejected: vis.filter(v => v.closure === 'rejected').length, notFeasible: vis.filter(v => v.closure === 'not_feasible').length,
     places: latest.size
   };
   const countBy = (arr, key) => { const m = new Map(); arr.forEach(x => [].concat(key(x) || []).forEach(k => m.set(k, (m.get(k) || 0) + 1))); return [...m.entries()].sort((a, b) => b[1] - a[1]); };
@@ -159,7 +159,7 @@ async function viewDashboard(force = false) {
 
     <div class="card"><h3>Business</h3>
       <div class="stats" style="margin-bottom:6px">${tile(inrShort(M.biz.potential), 'Potential')}${tile(inrShort(M.biz.mobilised), 'Mobilised', 'ok')}${tile(M.biz.accounts, 'Accounts')}</div>
-      <p class="hint">Closures: ${M.biz.opened} opened · ${M.biz.rejected} rejected · ${M.biz.notFeasible} not feasible, across ${M.biz.places} places visited. Potential counts each place's latest visit once.</p>
+      <p class="hint">Closures: ${M.biz.opened} opened · ${M.biz.existing} existing customer${M.biz.existing === 1 ? '' : 's'} · ${M.biz.rejected} rejected · ${M.biz.notFeasible} not feasible, across ${M.biz.places} places visited. Potential counts each place's latest visit once.</p>
       ${M.outcomes.length ? `<h4 class="dh">Outcomes</h4>${hbars(M.outcomes)}` : ''}
       ${M.products.length ? `<h4 class="dh">Products discussed</h4>${hbars(M.products.slice(0, 10))}` : ''}
       ${M.banking.length ? `<h4 class="dh">Banks with</h4>${hbars(M.banking)}${M.otherBanks.length ? `<p class="hint" style="margin-top:6px">Other banks named: ${M.otherBanks.slice(0, 8).map(([b, c]) => `${esc(b)} (${c})`).join(', ')}</p>` : ''}` : ''}
@@ -620,7 +620,7 @@ async function exportExcel(M, D) {
     ['  of which awaiting verification', N.submitted, M.visited ? N.submitted / M.visited : 0], ['Overdue', N.overdue, N.total ? N.overdue / N.total : 0],
     ['Not due yet', N.notdue, ''], ['On hold (request pending)', N.hold, ''], ['Follow-ups due', M.followDue.length, ''],
     ['Places visited (any visit)', M.biz.places, ''], ['Accounts opened (places)', M.biz.opened, ''], ['Account numbers recorded', M.biz.accounts, ''],
-    ['Rejected', M.biz.rejected, ''], ['Not feasible', M.biz.notFeasible, ''], ['Business potential', M.biz.potential, ''], ['Business mobilised', M.biz.mobilised, '']
+    ['Existing customers (lead closed)', M.biz.existing, ''], ['Rejected', M.biz.rejected, ''], ['Not feasible', M.biz.notFeasible, ''], ['Business potential', M.biz.potential, ''], ['Business mobilised', M.biz.mobilised, '']
   ];
   const wsSum = table('TASC Connect · Summary', [{ h: 'Measure', w: 34, t: 'text' }, { h: 'Number', w: 16, t: 'int' }, { h: 'Share', w: 10, t: 'pct' }], sumRows);
   ['Business potential', 'Business mobilised'].forEach(lbl => { const r = 4 + sumRows.findIndex(x => x[0] === lbl); const a = XLSX.utils.encode_cell({ r, c: 1 }); ws_fmt(wsSum[a], FMT.inr); });
@@ -657,7 +657,7 @@ async function exportExcel(M, D) {
     v.person_name || '', v.person_designation || '', v.person_mobile || '',
     { us: 'Our bank', other: 'Other bank', none: 'None / not known' }[v.banking_with] || '', v.other_bank || '',
     v.potential_rs != null ? +v.potential_rs : '', (v.products || []).join(', '), v.outcome || '', v.remarks || '', v.next_step || '',
-    d(v.followup_on) || '', closureLabel(v.closure) || '', (v.account_numbers || []).join(', '), v.mobilised_rs != null ? +v.mobilised_rs : '',
+    d(v.followup_on) || '', closureLabel(v.closure) || '', (v.account_numbers || []).join(', '), (v.existing_accounts || []).join(', '), v.mobilised_rs != null ? +v.mobilised_rs : '',
     photosOf(v.id), v.lat != null ? `${(+v.lat).toFixed(5)}, ${(+v.lng).toFixed(5)}` : '',
     v.status === 'verified' ? 'Verified' : v.status === 'returned' ? 'Sent back' : 'Submitted', d(v.verified_at) || '', v.verified_at ? (v.verified_by ? personName(v.verified_by) : 'Admin') : '']);
   const wsVi = table('Visit reports', [{ h: 'Place', w: 40, t: 'text' }, { h: 'Type', w: 20, t: 'text' }, { h: 'Area', w: 16, t: 'text' }, { h: 'Visit no', w: 8, t: 'int' },
@@ -665,7 +665,7 @@ async function exportExcel(M, D) {
     { h: 'Allotted', w: 9, t: 'text' }, { h: 'Joint visit with', w: 24, t: 'text' }, { h: 'Person met', w: 22, t: 'text' }, { h: 'Designation', w: 18, t: 'text' },
     { h: 'Mobile', w: 13, t: 'text' }, { h: 'Banks with', w: 14, t: 'text' }, { h: 'Other bank', w: 16, t: 'text' }, { h: 'Potential', w: 14, t: 'inr' },
     { h: 'Products', w: 30, t: 'text' }, { h: 'Outcome', w: 18, t: 'text' }, { h: 'Remarks', w: 40, t: 'text' }, { h: 'Next step', w: 30, t: 'text' },
-    { h: 'Follow-up on', w: 13, t: 'date' }, { h: 'Closure', w: 16, t: 'text', tint: true }, { h: 'Account numbers', w: 22, t: 'text' }, { h: 'Mobilised', w: 14, t: 'inr' },
+    { h: 'Follow-up on', w: 13, t: 'date' }, { h: 'Closure', w: 16, t: 'text', tint: true }, { h: 'Accounts opened', w: 22, t: 'text' }, { h: 'Existing accounts', w: 22, t: 'text' }, { h: 'Mobilised', w: 14, t: 'inr' },
     { h: 'Photos', w: 8, t: 'int' }, { h: 'Location (lat, long)', w: 22, t: 'text' }, { h: 'Status', w: 12, t: 'text', tint: true }, { h: 'Verified at', w: 17, t: 'dt' }, { h: 'Verified by', w: 22, t: 'text' }], viRows);
 
   const wb = XLSX.utils.book_new();

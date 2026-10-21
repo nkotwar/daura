@@ -314,7 +314,7 @@ async function openVisit(id) {
   body.innerHTML = `
     <div class="row wrap" style="margin-bottom:12px">
       <span class="badge ${v.status === 'verified' ? 'ok' : back ? 'bad' : 'warn'}">${v.status === 'verified' ? 'Verified' : back ? 'Sent back for changes' : 'Submitted, not yet verified'}</span>
-      ${v.closure ? `<span class="badge ${v.closure === 'account_opened' ? 'ok' : 'bad'}">${closureLabel(v.closure)}</span>` : ''}
+      ${v.closure ? `<span class="badge ${v.closure === 'account_opened' ? 'ok' : v.closure === 'existing_customer' ? 'acc' : 'bad'}">${closureLabel(v.closure)}</span>` : ''}
       ${v.assignment_id ? '<span class="badge acc">Allotted</span>' : '<span class="badge">Self-initiated</span>'}</div>
     ${back ? `<div class="note bad" style="margin-bottom:12px"><b>Sent back by the Regional Office${v.returned_at ? ' · ' + fmtDateTime(v.returned_at) : ''}:</b> ${esc(v.return_note || '')}${mine ? '<br>Make the changes and save: it goes back for checking.' : ''}</div>`
       : v.resubmitted_at && v.status === 'submitted' ? `<div class="note" style="margin-bottom:12px">Resubmitted ${fmtDateTime(v.resubmitted_at)} after being sent back${v.return_note ? `: "${esc(v.return_note)}"` : ''}.</div>` : ''}
@@ -335,7 +335,8 @@ async function openVisit(id) {
       ${kv('Next step', esc(v.next_step))}
       ${kv('Follow-up', v.followup_on ? fmtDate(v.followup_on) : '')}
       ${kv('Closure', v.closure ? closureLabel(v.closure) + (v.closure_note ? ': ' + esc(v.closure_note) : '') : '')}
-      ${kv('Accounts', v.account_numbers && v.account_numbers.length ? `<span class="mono">${v.account_numbers.map(esc).join(', ')}</span>` : '')}
+      ${kv('Accounts opened', v.account_numbers && v.account_numbers.length ? `<span class="mono">${v.account_numbers.map(esc).join(', ')}</span>` : '')}
+      ${kv('Existing accounts', v.existing_accounts && v.existing_accounts.length ? `<span class="mono">${v.existing_accounts.map(esc).join(', ')}</span>` : '')}
       ${kv('Mobilised', v.mobilised_rs != null ? inr(v.mobilised_rs) : '')}
       ${kv('Verified', v.verified_at ? `${esc(v.verified_by ? personName(v.verified_by) : 'Admin')} · ${fmtDateTime(v.verified_at)}` : '')}
     </dl>

@@ -3,7 +3,7 @@
 
 const personName = emp => { const p = S.dir && S.dir.get(emp); return p ? cleanName(p.name) : (emp ? 'Emp ' + emp : '—'); };
 const setting = (k, d = []) => (S.settings && S.settings[k]) || d;
-const closureLabel = k => ({ account_opened: 'Account opened', rejected: 'Rejected', not_feasible: 'Not feasible' }[k] || '');
+const closureLabel = k => ({ account_opened: 'Account opened', rejected: 'Rejected', not_feasible: 'Not feasible', existing_customer: 'Existing customer' }[k] || '');
 
 /* ───────── IndexedDB outbox ───────── */
 const idb = {

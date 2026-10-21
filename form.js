@@ -17,6 +17,8 @@ async function openVisitForm(opts) {
     potential_rs: v.potential_rs ?? '', products: new Set(v.products || []), outcome: v.outcome || '', remarks: v.remarks || '',
     next_step: v.next_step || '', followup_on: v.followup_on || '', closure: v.closure || '', closure_note: v.closure_note || '',
     mobilised_rs: v.mobilised_rs ?? '', account_numbers: (v.account_numbers && v.account_numbers.length ? [...v.account_numbers] : ['']),
+    existing_accounts: (v.existing_accounts && v.existing_accounts.length ? [...v.existing_accounts] : ['']),
+    outcomeTouched: false, visit0: v,
     joint: new Set(opts.joint || []), photos: (opts.photos || []).map(p => ({ ...p, existing: true })), removed: []
   };
   const no = v.visit_no || opts.nextNo || 1;
@@ -51,6 +53,10 @@ function formHTML(F, no) {
     <div class="seg" id="f-bank" style="margin-bottom:0">${[['us', 'Our bank'], ['other', 'Other bank'], ['none', 'None / not known']].map(([k, l]) =>
       `<button type="button" data-v="${k}" class="${F.banking_with === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="f-obw" ${F.banking_with === 'other' ? '' : 'hidden'}><label class="f" for="f-ob">Which bank(s)</label><input class="input" id="f-ob" value="${esc(F.other_bank)}" placeholder="e.g. SBI, HDFC"></div>
+    <p class="hint" id="f-banklock" hidden>Set to Our bank because the outcome is Already our customer.</p>
+    <div id="f-exw" ${F.banking_with === 'us' ? '' : 'hidden'}><label class="f">Existing account number(s) <span class="hint" id="f-exreq">(optional)</span></label><div id="f-exs"></div>
+      <button type="button" class="linkbtn" id="f-exadd">+ Add another account</button>
+      <p class="hint" style="margin-top:4px">Accounts they already have with us. These are not counted as accounts opened.</p></div>
   </div>
 
   <div class="fs"><h4>Business</h4>
@@ -82,8 +88,9 @@ function formHTML(F, no) {
   </div>
 
   <div class="fs"><h4>Lead status?</h4>
-    <div class="chipwrap" id="f-close">${[['', 'Open'], ['account_opened', 'Account opened'], ['rejected', 'Rejected'], ['not_feasible', 'Not feasible']].map(([k, l]) =>
-      `<button type="button" class="chip ${F.closure === k ? 'on' : ''}" data-c="${k}">${l}</button>`).join('')}</div>
+    <div class="chipwrap" id="f-close">${[['', 'Open'], ['account_opened', 'Account opened'], ['rejected', 'Rejected'], ['not_feasible', 'Not feasible'], ['existing_customer', 'Existing customer']].map(([k, l]) =>
+      `<button type="button" class="chip ${F.closure === k ? 'on' : ''}" data-c="${k}" ${k === 'existing_customer' && F.closure !== k ? 'hidden' : ''}>${l}</button>`).join('')}</div>
+    <p class="hint" id="f-custhint" hidden>Already our customer: the lead is closed as Existing customer. Nothing new was opened, so no follow-up.</p>
     <div id="f-ao" ${F.closure === 'account_opened' ? '' : 'hidden'}>
       <label class="f">Account number(s)</label><div id="f-acs"></div>
       <button type="button" class="linkbtn" id="f-acadd">+ Add another account</button>
@@ -127,11 +134,24 @@ const inr = n => n === '' || n == null || isNaN(n) ? '' : '₹ ' + Number(n).toL
 function bindForm(body, F) {
   const $b = s => $(s, body);
   $b('#f-locbtn').onclick = () => refreshLocation(body, F);
-  $$('#f-bank button', body).forEach(b => b.onclick = () => {
-    F.banking_with = F.banking_with === b.dataset.v ? '' : b.dataset.v;
+  const drawBank = () => {
     $$('#f-bank button', body).forEach(x => x.classList.toggle('on', x.dataset.v === F.banking_with));
     $b('#f-obw').hidden = F.banking_with !== 'other';
+    $b('#f-exw').hidden = F.banking_with !== 'us';
+  };
+  $$('#f-bank button', body).forEach(b => b.onclick = () => {
+    if (F.custLock) return;   // "Already our customer" keeps this on Our bank
+    F.banking_with = F.banking_with === b.dataset.v ? '' : b.dataset.v;
+    drawBank();
   });
+  const drawExs = () => {
+    $b('#f-exs').innerHTML = F.existing_accounts.map((a, i) => `<div class="row" style="margin-bottom:6px"><input class="input mono grow" data-ex="${i}" inputmode="numeric" value="${esc(a)}" placeholder="Existing account number">
+      ${F.existing_accounts.length > 1 ? `<button type="button" class="x" data-exrm="${i}" aria-label="Remove">${ICON.x}</button>` : ''}</div>`).join('');
+    $$('[data-ex]', body).forEach(i => i.oninput = () => { F.existing_accounts[+i.dataset.ex] = i.value.trim(); });
+    $$('[data-exrm]', body).forEach(b => b.onclick = () => { F.existing_accounts.splice(+b.dataset.exrm, 1); drawExs(); });
+  };
+  drawExs();
+  $b('#f-exadd').onclick = () => { F.existing_accounts.push(''); drawExs(); };
   const potw = () => { $b('#f-potw').textContent = inr($b('#f-pot').value); };
   $b('#f-pot').oninput = potw; potw();
   $$('#f-prod .chip', body).forEach(c => c.onclick = () => { const p = c.dataset.p; F.products.has(p) ? F.products.delete(p) : F.products.add(p); c.classList.toggle('on'); });
@@ -162,27 +182,45 @@ function bindForm(body, F) {
   $b('#f-acadd').onclick = () => { F.account_numbers.push(''); drawAcs(); };
   const mobw = () => { $b('#f-mobw').textContent = inr($b('#f-mob').value); };
   $b('#f-mob').oninput = mobw; mobw();
-  $$('#f-close .chip', body).forEach(c => c.onclick = () => {
-    F.closure = c.dataset.c;
-    $$('#f-close .chip', body).forEach(x => x.classList.toggle('on', x.dataset.c === F.closure));
+  const drawClose = () => {
+    $$('#f-close .chip', body).forEach(x => { x.classList.toggle('on', x.dataset.c === F.closure); x.disabled = !!F.custLock && x.dataset.c !== 'existing_customer';
+      if (x.dataset.c === 'existing_customer') x.hidden = !F.custLock && F.closure !== 'existing_customer'; });
     $b('#f-ao').hidden = F.closure !== 'account_opened';
-    $b('#f-cnw').hidden = !F.closure; $b('#f-closehint').hidden = !F.closure;
-    fuRule();
+    $b('#f-cnw').hidden = !F.closure; $b('#f-closehint').hidden = !F.closure || !!F.custLock;
+    $b('#f-custhint').hidden = !F.custLock;
+  };
+  $$('#f-close .chip', body).forEach(c => c.onclick = () => {
+    if (F.custLock || c.dataset.c === 'existing_customer') return;   // set only by the outcome
+    F.closure = c.dataset.c;
+    drawClose(); fuRule();
   });
+  /* "Already our customer" → banking is Our bank, existing account number required, lead closed as Existing customer.
+     A report submitted before this rule existed is left as it was unless its outcome is changed. */
+  const custRule = () => {
+    const out = $b('#f-out').value;
+    const legacy = !F.isNew && !F.outcomeTouched && F.closure !== 'existing_customer';
+    F.custLock = out === 'Already our customer' && !legacy;
+    if (F.custLock) { F.closure = 'existing_customer'; F.banking_with = 'us'; }
+    else if (F.closure === 'existing_customer') F.closure = '';
+    $$('#f-bank button', body).forEach(x => { x.disabled = !!F.custLock && x.dataset.v !== 'us'; });
+    $b('#f-banklock').hidden = !F.custLock;
+    $b('#f-exreq').textContent = F.custLock ? '(required)' : '(optional)';
+    drawBank(); drawClose();
+  };
   // follow-up rules: none for a closed lead or an existing customer; required for Interested / Follow-up needed / Person not available
   const FU_REQUIRED = ['Interested', 'Follow-up needed', 'Person not available'];
   const fuRule = () => {
     const out = $b('#f-out').value;
-    const why = F.closure ? `No follow-up: lead status is ${closureLabel(F.closure)}.` : out === 'Already our customer' ? 'No follow-up needed: already our customer.' : '';
+    const why = F.closure === 'existing_customer' ? 'No follow-up: already our customer.' : F.closure ? `No follow-up: lead status is ${closureLabel(F.closure)}.` : out === 'Already our customer' ? 'No follow-up needed: already our customer.' : '';
     $b('#f-fuw').hidden = !!why; $b('#f-funo').hidden = !why; $b('#f-funo').textContent = why;
     const req = !why && FU_REQUIRED.includes(out);
     $b('#f-fureq').textContent = req ? '(required)' : '(optional)';
     $b('#f-fuclr').hidden = req;
   };
-  $b('#f-out').addEventListener('change', fuRule);
+  $b('#f-out').addEventListener('change', () => { F.outcomeTouched = true; custRule(); fuRule(); });
   $b('#f-fuclr').onclick = () => { $b('#f-fu').value = ''; toast('Follow-up removed'); };
   if (!F.isNew && visitsOf(F.entity.id).some(x => x.id !== F.id && x.visit_no > no)) $b('#f-fuold').hidden = false;
-  fuRule();
+  custRule(); fuRule();
 
   // photos
   const count = () => F.photos.length;
@@ -248,6 +286,8 @@ async function saveForm(body, F) {
   if (fuDate && when && fuDate < String(when).slice(0, 10)) return err('The follow-up date can\'t be before the visit date.');
   const accs = F.closure === 'account_opened' ? F.account_numbers.map(a => a.trim()).filter(Boolean) : [];
   if (F.closure === 'account_opened' && !accs.length) return err('Please enter the account number opened.');
+  const exAccs = F.banking_with === 'us' ? F.existing_accounts.map(a => a.trim()).filter(Boolean) : [];
+  if (F.closure === 'existing_customer' && !exAccs.length) return err('Please enter their existing account number. It is needed when the outcome is Already our customer.');
   const num = id => { const x = $b(id).value; return x === '' ? null : Number(x); };
   const visit = {
     entity_id: F.entity.id, assignment_id: F.assignment_id, visitor: S.who.me.emp_id,
@@ -261,6 +301,7 @@ async function saveForm(body, F) {
     closure: F.closure || null, closure_note: F.closure ? ($b('#f-cn').value.trim() || null) : null,
     mobilised_rs: F.closure === 'account_opened' ? num('#f-mob') : null, account_numbers: accs
   };
+  if (exAccs.length || (F.visit0 && F.visit0.existing_accounts && F.visit0.existing_accounts.length)) visit.existing_accounts = exAccs;   // only sent when used, so a database without it still accepts other reports
   const item = {
     id: F.id, isNew: F.isNew, visit, joint: [...F.joint], entityName: F.entity.name,
     addPhotos: F.photos.filter(p => !p.existing).map(({ preview, ...p }) => p), removePhotos: F.removed
