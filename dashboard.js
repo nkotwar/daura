@@ -179,6 +179,7 @@ async function viewDashboard(force = false) {
     <div class="card"><h3>Share &amp; export</h3>
       <div class="stack">
         <button class="btn block" id="dx-img">Summary image for WhatsApp</button>
+        <button class="btn block soft" id="dx-rep">Make a report (PDF with photos)</button>
         <button class="btn ghost block" id="dx-pdf">Pending visits, staff-wise (PDF)</button>
         <button class="btn ghost block" id="dx-xls">Download Excel (all data)</button>
       </div>
@@ -198,6 +199,7 @@ async function viewDashboard(force = false) {
   $('#dx-img').onclick = () => askSummaryImage(M, f, D);
   $('#dx-xls').onclick = () => exportExcel(M, D);
   $('#dx-pdf').onclick = () => askPendingPdf(M, f, D);
+  $('#dx-rep').onclick = () => askReport(M, f, D);
   loadGallery(f, M);
 }
 
