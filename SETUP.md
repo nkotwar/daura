@@ -196,6 +196,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 57 | Existing account number(s) box shows right under Outcome when the outcome is Already our customer (required); with Our bank and any other outcome it stays under Their banking (optional). One box, same numbers | Nothing to run |
 | 58 | Admin also gets the People subtab in the Visits tab (same list and actions as Admin → People, which stays) | Nothing to run |
 | 59 | People removed from the Admin tab; it lives in Visits → People for the admin (full controls) and viewers (read-only). Admin tab now opens on Verify | Nothing to run |
+| 60 | Admin → Verify lists reports in the order they were submitted (oldest first) and shows when each was submitted | Nothing to run |
 
 ---
 

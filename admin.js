@@ -28,13 +28,13 @@ async function adminBadges() {
 /* ───────── Verify (admin) ─────────
    Every report waiting for a check, oldest first. Only the admin verifies. */
 async function admVerify() {
-  const rows = liveVisits().filter(v => v.status === 'submitted').map(withEntity).sort((a, b) => (a.visited_at || '').localeCompare(b.visited_at || ''));
+  const rows = liveVisits().filter(v => v.status === 'submitted').map(withEntity).sort((a, b) => (a.logged_at || a.visited_at || '').localeCompare(b.logged_at || b.visited_at || ''));   // in the order they were submitted
   const bname = new Map(all('branches').map(b => [b.code, b.name]));
-  admPane('verify').innerHTML = rows.length ? `<p class="hint" style="margin-top:0">${rows.length} report${rows.length > 1 ? 's' : ''} waiting, oldest first. Open one, look at the photos and details, then tap <b>Verify</b>.</p>
+  admPane('verify').innerHTML = rows.length ? `<p class="hint" style="margin-top:0">${rows.length} report${rows.length > 1 ? 's' : ''} waiting, in the order they were submitted (oldest first). Open one, look at the photos and details, then tap <b>Verify</b>.</p>
     <div class="list">${rows.map(v => `<button class="item" data-v="${v.id}">
         <div class="avatar">${esc(initials(personName(v.visitor)))}</div>
         <div class="grow"><div class="t">${esc(v.entity.name)} · V${v.visit_no}</div>
-          <div class="s">${esc(personName(v.visitor))} · ${esc(bname.get(v.visitor_branch) || '')} · ${fmtDateTime(v.visited_at)}</div></div>
+          <div class="s">${esc(personName(v.visitor))} · ${esc(bname.get(v.visitor_branch) || '')} · Submitted ${fmtDateTime(v.logged_at || v.visited_at)}</div></div>
         <span class="chev">${ICON.chev}</span></button>`).join('')}</div>`
     : emptyState(ICON.shield, 'Nothing waiting', 'Every submitted visit report has been verified.');
   $$('[data-v]', admPane('verify')).forEach(b => b.onclick = () => openVisit(b.dataset.v));
