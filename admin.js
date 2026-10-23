@@ -51,14 +51,13 @@ async function admRequests() {
         <h3 style="margin-top:10px">${target(r)}</h3>
         <p class="hint" style="margin:2px 0 8px">From ${esc(personName(r.raised_by))}</p>
         <div class="note">"${esc(r.reason)}"</div>
-        ${r.kind === 'reassign' ? `<label class="f" for="to-${r.id}">Reassign to</label>
-          <select class="input" id="to-${r.id}"><option value="">Choose a person…</option>${[...S.dir.values()].filter(p => p.emp_id !== r.raised_by).map(p => `<option value="${p.emp_id}">${esc(cleanName(p.name))} · ${esc(p.branch || '')}</option>`).join('')}</select>` : ''}
         <input class="input" id="nt-${r.id}" placeholder="Note to them (optional)" style="margin-top:10px">
         <div class="row" style="margin-top:10px">
           ${r.visit_id ? `<button class="btn ghost small" data-open="${r.visit_id}">View visit</button>` : ''}
           <span class="grow"></span>
           <button class="btn ghost small" data-dec="${r.id}">Decline</button>
-          <button class="btn small" data-ok="${r.id}">Approve</button></div></div>`).join('')
+          ${r.kind === 'reassign' && r.assignment && r.assignment.status === 'open' ? `<button class="btn small" data-reas="${r.id}">Reassign…</button>`
+            : r.kind === 'reassign' ? '' : `<button class="btn small" data-ok="${r.id}">Approve</button>`}</div></div>`).join('')
       : emptyState(ICON.shield, 'No requests waiting', 'When staff ask to delete a visit, remove or reassign an allotment, or unverify a visit to correct it, the request lands here for you to approve or decline.')}
     ${done.length ? `<h2>Recently decided</h2><div class="list">${done.map(r => `<div class="item" style="cursor:default"><div class="grow">
         <div class="t">${RQ_LABEL[r.kind]}</div><div class="s">${target(r)} · ${esc(personName(r.raised_by))}${r.decision_note ? ' · ' + esc(r.decision_note) : ''}</div></div>
@@ -67,8 +66,7 @@ async function admRequests() {
   const decide = async (id, approve) => {
     const r = pending.find(x => x.id === id);
     const note = ($('#nt-' + id) || {}).value || null;
-    let to = null;
-    if (approve && r.kind === 'reassign') { to = +($('#to-' + id).value || 0); if (!to) { toast('Choose who to reassign to'); return; } }
+    const to = null;   // reassign requests are approved through openReassignRequest
     try {
       if (approve && r.kind === 'delete_visit' && r.visit_id) {
         const ph = all('photos').filter(p => p.visit_id === r.visit_id);
@@ -89,6 +87,39 @@ async function admRequests() {
   };
   $$('[data-ok]', admPane('requests')).forEach(b => b.onclick = () => decide(b.dataset.ok, true));
   $$('[data-dec]', admPane('requests')).forEach(b => b.onclick = () => decide(b.dataset.dec, false));
+  $$('[data-reas]', admPane('requests')).forEach(b => b.onclick = () => openReassignRequest(pending.find(x => x.id === b.dataset.reas)));
+}
+
+/* Approving a reassign request: the same picker as Reallot (who, with their pending load; visit-by date; note for staff) */
+function openReassignRequest(r) {
+  const cur = r.assignment, today = todayISO();
+  const body = openSheet('Reassign', `
+    <p class="muted" style="margin-top:0"><b>${esc(cur.entity.name)}</b> · allotted to ${esc(cleanName(personName(r.raised_by)))}, scheduled ${fmtDate(cur.scheduled_on)}</p>
+    <div class="note" style="margin-bottom:6px">${esc(cleanName(personName(r.raised_by)))} asked: "${esc(r.reason)}"</div>
+    ${allotFieldsHTML(cur, false, { date: cur.scheduled_on && cur.scheduled_on >= today ? cur.scheduled_on : plusDays(7) })}
+    <label class="f" for="rr-nt">Reply to ${esc(cleanName(personName(r.raised_by)))} <span class="hint">(optional)</span></label>
+    <input class="input" id="rr-nt" placeholder="e.g. Given to the Pali branch" value="${esc(($('#nt-' + r.id) || {}).value || '')}">
+    <p class="hint" id="al-err" style="color:var(--bad)"></p>
+    <button class="btn block" id="rr-go">Reassign</button>`);
+  const val = bindAllotFields(body, cur, { startEmpty: true, exclude: r.raised_by, noReason: true });
+  $('#rr-go', body).onclick = async () => {
+    const v = val(), b = $('#rr-go', body), e = $('#al-err', body);
+    if (!v.to) { e.textContent = 'Pick who should visit.'; return; }
+    if (!v.date) { e.textContent = 'Pick a visit date.'; return; }
+    b.disabled = true; e.textContent = '';
+    const note = $('#rr-nt', body).value.trim() || null;
+    try { await rpc('decide_request', { p_request: r.id, p_approve: true, p_note: note, p_to: v.to }); }   // approves and reassigns, keeping the request's reason in the history
+    catch (err) { b.disabled = false; e.textContent = errText(err); return; }
+    patch('requests', r.id, { status: 'approved', decision_note: note, decided_at: new Date().toISOString(), decided_by: S.who.gmail });
+    DB.holds.delete(cur.id);
+    patch('assignments', cur.id, { assignee: v.to });
+    let warn = '';
+    if (v.date !== cur.scheduled_on || v.note !== (cur.note || '')) {   // then the new date and note
+      try { put('assignments', await rpc('admin_update_allotment', { p_assignment: cur.id, p_to: v.to, p_date: v.date, p_note: v.note, p_reason: null })); }
+      catch (err) { warn = ` The new date or note was not saved (${errText(err)}): use Reallot on the place.`; }
+    }
+    closeSheet(); toast(`Reassigned to ${personName(v.to)}.${warn}`, warn ? 6000 : 3000); admRequests(); adminBadges();
+  };
 }
 
 /* ───────── People ───────── */

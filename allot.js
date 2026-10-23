@@ -5,7 +5,7 @@ const plusDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return
 const latestCampaign = () => all('campaigns').sort((a, b) => b.id - a.id)[0];
 
 /* The fields. `cur` = an existing allotment (for Reallot), else defaults. */
-function allotFieldsHTML(cur, optional) {
+function allotFieldsHTML(cur, optional, opt = {}) {
   const camps = all('campaigns').sort((a, b) => b.id - a.id);
   const camp = cur ? cur.campaign_id : (latestCampaign() || {}).id;
   return `
@@ -15,8 +15,8 @@ function allotFieldsHTML(cur, optional) {
     <div class="list" id="al-list" hidden></div>
     <div id="al-more" ${optional && !cur ? 'hidden' : ''}>
       <div class="g2">
-        <div><label class="f" for="al-d">Visit by</label><input class="input" type="date" id="al-d" min="${todayISO()}" value="${esc((cur && cur.scheduled_on) || plusDays(7))}"></div>
-        <div><label class="f" for="al-c">Campaign</label><select class="input" id="al-c">${camps.map(c => `<option value="${c.id}" ${c.id === camp ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}<option value="" ${camp ? '' : 'selected'}>None</option></select></div>
+        <div><label class="f" for="al-d">Visit by</label><input class="input" type="date" id="al-d" min="${todayISO()}" value="${esc(opt.date || (cur && cur.scheduled_on) || plusDays(7))}"></div>
+        ${cur ? '<div></div>' : `<div><label class="f" for="al-c">Campaign</label><select class="input" id="al-c">${camps.map(c => `<option value="${c.id}" ${c.id === camp ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}<option value="" ${camp ? '' : 'selected'}>None</option></select></div>`}
       </div>
       <label class="f" for="al-n">Note for staff <span class="hint">(optional)</span></label>
       <textarea class="input" id="al-n" rows="2" placeholder="e.g. Meet the secretary; they bank with SBI">${esc((cur && cur.note) || '')}</textarea>
@@ -26,10 +26,11 @@ function allotFieldsHTML(cur, optional) {
 }
 
 /* Wire the staff picker. Returns a getter for the chosen values. */
-function bindAllotFields(body, cur) {
-  let to = cur ? cur.assignee : null;
+/* opt.startEmpty: nobody picked yet (reassign request); opt.exclude: emp_id not offered (the person who asked) */
+function bindAllotFields(body, cur, opt = {}) {
+  let to = cur && !opt.startEmpty ? cur.assignee : null;
   const pend = typeof pendingByEmp === 'function' ? pendingByEmp() : new Map();
-  const people = [...S.dir.values()].sort((a, b) => cleanName(a.name).localeCompare(cleanName(b.name)));
+  const people = [...S.dir.values()].filter(p => p.emp_id !== opt.exclude).sort((a, b) => cleanName(a.name).localeCompare(cleanName(b.name)));
   const load = e => { const c = pend.get(e); return c ? `${c.n} pending${c.late ? ` · ${c.late} overdue` : ''}` : 'Nothing pending'; };
   const showPicked = () => {
     const p = to && S.dir.get(to);
@@ -38,7 +39,7 @@ function bindAllotFields(body, cur) {
         <button type="button" class="btn small ghost" id="al-chg">Change</button></div>` : '';
     $('#al-sbox', body).hidden = !!p; $('#al-list', body).hidden = true;
     $('#al-more', body).hidden = !(p || cur);
-    $('#al-why', body).hidden = !(cur && to && to !== cur.assignee);
+    $('#al-why', body).hidden = !!opt.noReason || !(cur && to && to !== cur.assignee);
     const c = $('#al-chg', body); if (c) c.onclick = () => { to = null; showPicked(); $('#al-q', body).value = ''; $('#al-q', body).focus(); draw(); };
   };
   const draw = () => {
@@ -53,7 +54,8 @@ function bindAllotFields(body, cur) {
   $('#al-q', body).oninput = draw;
   $('#al-q', body).onfocus = draw;
   showPicked();
-  return () => ({ to, date: $('#al-d', body).value || null, camp: $('#al-c', body).value ? +$('#al-c', body).value : null,
+  return () => ({ to, date: $('#al-d', body).value || null, camp: $('#al-c', body) && $('#al-c', body).value ? +$('#al-c', body).value : null,   // campaign only when allotting afresh (changing an allotment keeps its campaign)
+   
     note: $('#al-n', body).value.trim(), reason: $('#al-r', body).value.trim() });
 }
 
