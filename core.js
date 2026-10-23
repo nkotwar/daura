@@ -214,3 +214,30 @@ function renderTabs(show) {
   if (window.ResizeObserver) { const t = document.getElementById('top'); if (t) new ResizeObserver(set).observe(t); }
   addEventListener('resize', set); setTimeout(set, 0);
 })();
+
+/* ───────── search boxes that show they are filtering ─────────
+   Blue when they hold text, an × to clear, a one-line "Showing n of m" summary, and one soft glow when you come back to them. */
+function searchHTML(id, placeholder, value = '', cls = '') {
+  return `<div class="search ${value ? 'on' : ''} ${cls}">${ICON.search}<input class="input" id="${id}" type="search" enterkeyhint="search" placeholder="${esc(placeholder)}" value="${esc(value)}" autocomplete="off">
+    <button type="button" class="sx" aria-label="Clear search" ${value ? '' : 'hidden'}>${ICON.x}</button></div>`;
+}
+function bindSearch(input, onChange) {
+  const box = input.closest('.search'), x = $('.sx', box);
+  const sync = () => { box.classList.toggle('on', !!input.value.trim()); x.hidden = !input.value; };
+  input.addEventListener('input', sync);
+  x.onclick = () => { input.value = ''; sync(); onChange(); };
+  sync();
+}
+/* "Showing 4 of 338 places · Overdue · "school" · Clear" (only while a search is typed) */
+function searchSummary(el, { shown, of, noun, filters = [], q, onClear }) {
+  if (!el) return;
+  if (!q) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = `Showing <b>${shown}</b> of ${of} ${noun}${filters.filter(Boolean).map(f => ' · ' + esc(f)).join('')} · “${esc(q)}” · <button type="button" class="linkbtn" style="padding:0">Clear</button>`;
+  $('button', el).onclick = onClear;
+}
+function glowSearch(root) {
+  if (!root) return;
+  const on = $('.pseg button.on', root), pane = on ? $(`.pane[data-pane="${on.dataset.pid}"]`, root) : root;
+  $$('.search.on', pane || root).forEach(b => { b.classList.remove('glow'); void b.offsetWidth; b.classList.add('glow'); });
+}

@@ -53,7 +53,7 @@ function mountPager(host, panes, activeId, onChange) {
     load(k);
     requestAnimationFrame(() => place(0, true));
     clearTimeout(goTo._t);
-    goTo._t = setTimeout(() => { settle(changed ? shift : 0); centreTab(k, true); load(k - 1); load(k + 1); }, 320);
+    goTo._t = setTimeout(() => { settle(changed ? shift : 0); centreTab(k, true); load(k - 1); load(k + 1); if (changed) glowSearch(host); }, 320);
     if (changed) onChange(panes[k].id);
   };
   // first show: this section, then its neighbours straight after, so they are ready before you swipe

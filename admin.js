@@ -157,13 +157,17 @@ async function drawPeople(el, mode, fresh = true) {
       ${adm ? `<button class="btn small soft" id="ub" style="flex:none">${ICON.upload} Upload udairo.js</button><input type="file" id="uf" accept=".js,text/javascript,application/javascript" hidden>` : ''}
     </div>
     <div class="hint" style="margin:-4px 0 8px">${act.length} staff${br ? '' : ` in ${new Set(act.map(p => p.branch_code)).size} branches`}</div>
-    <div class="search">${ICON.search}<input class="input" id="pq" type="search" placeholder="${adm ? 'Name, emp ID, branch or Gmail' : 'Name, emp ID or branch'}" value="${esc(S.cache.peopleQ || '')}"></div>
+    ${searchHTML('pq', adm ? 'Name, emp ID, branch or Gmail' : 'Name, emp ID or branch', S.cache.peopleQ || '')}
     <div class="chips">${Object.entries(filters).filter(([k, v]) => k === 'all' || v[1].length || k === f).map(([k, v]) =>
       `<button class="chip ${f === k ? 'on' : ''}" data-pf="${k}">${v[0]}<b>${v[1].length}</b></button>`).join('')}</div>
+    <div class="hint sline" id="pqs" hidden></div>
     <div class="list" id="plist"></div>`;
   const draw = () => {
     const t = ($('#pq', el).value || '').trim().toLowerCase(); S.cache.peopleQ = t;
-    const rows = (filters[f] || filters.all)[1].filter(p => !t || [p.name, p.emp_id, p.branch, p.designation, ...(adm ? p.logins.map(l => l.gmail) : [])].join(' ').toLowerCase().includes(t));
+    const set = (filters[f] || filters.all)[1];
+    const rows = set.filter(p => !t || [p.name, p.emp_id, p.branch, p.designation, ...(adm ? p.logins.map(l => l.gmail) : [])].join(' ').toLowerCase().includes(t));
+    searchSummary($('#pqs', el), { shown: rows.length, of: set.length, noun: 'people', filters: [f !== 'all' && (filters[f] || [])[0], br && ($('#pbr option:checked', el) || {}).textContent], q: $('#pq', el).value.trim(),
+      onClear: () => { $('#pq', el).value = ''; $('#pq', el).dispatchEvent(new Event('input')); } });
     $('#plist', el).innerHTML = rows.length ? rows.map(p => `<button class="item" data-emp="${p.emp_id}">
         <div class="avatar">${esc(initials(p.name))}</div>
         <div class="grow"><div class="t">${esc(cleanName(p.name))}</div>
@@ -175,7 +179,7 @@ async function drawPeople(el, mode, fresh = true) {
         </div></button>`).join('') : emptyState(ICON.search, 'No one matches', 'Try part of a name, an Emp ID or a branch.');
   };
   draw();
-  $('#pq', el).oninput = draw;
+  $('#pq', el).oninput = draw; bindSearch($('#pq', el), draw);
   $('#pbr', el).onchange = e => { S.cache.peopleBranch = e.target.value; drawPeople(el, mode, false); };
   $$('[data-pf]', el).forEach(b => b.onclick = () => { S.cache.peopleFilter = b.dataset.pf; drawPeople(el, mode, false); });
   $('#plist', el).onclick = e => { const b = e.target.closest('[data-emp]'); if (b) (adm ? openPerson(+b.dataset.emp) : openStaff(+b.dataset.emp)); };
@@ -387,11 +391,12 @@ async function admActivity() {
   const el = admPane('activity');
   if (!el.dataset.ready) {
     el.dataset.ready = '1';
-    el.innerHTML = `<div class="search">${ICON.search}<input class="input" id="aq" type="search" placeholder="Person or place" autocomplete="off"></div>
+    el.innerHTML = `${searchHTML('aq', 'Person or place', AC.q)}
       <div class="chips" id="akinds">${Object.entries(ACT_KINDS).map(([k, v]) => `<button class="chip" data-k="${k}">${v[0]}</button>`).join('')}</div>
       <div id="alist"></div><button class="btn ghost block small" id="amore" hidden style="margin-top:12px">Load more</button>`;
     const reload = async () => { await draw(false); };
     $('#aq', el).oninput = e => { clearTimeout(AC.t); AC.t = setTimeout(() => { AC.q = e.target.value.trim(); reload(); }, 350); };
+    bindSearch($('#aq', el), () => { clearTimeout(AC.t); AC.q = ''; reload(); });
     $$('[data-k]', el).forEach(b => b.onclick = () => { AC.kind = b.dataset.k; reload(); });
     $('#amore', el).onclick = async () => { $('#amore', el).disabled = true; try { await draw(true); } finally { $('#amore', el).disabled = false; } };
     el._draw = draw;

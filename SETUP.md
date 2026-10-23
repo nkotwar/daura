@@ -198,6 +198,7 @@ Profile (admins) shows photo storage used, out of the free 1 GB. At **800 MB** i
 | 59 | People removed from the Admin tab; it lives in Visits → People for the admin (full controls) and viewers (read-only). Admin tab now opens on Verify | Nothing to run |
 | 60 | Admin → Verify lists reports in the order they were submitted (oldest first) and shows when each was submitted | Nothing to run |
 | 61 | Reassign requests: **Reassign…** opens the same picker as Reallot (search with each person's pending load, Visit by date, note for staff) plus a reply to the requester; the requester is not offered. Pending requests are unaffected. The Campaign box no longer shows when changing an existing allotment (it was never changed there) | Nothing to run |
+| 62 | Search boxes in Places, People and Activity show when they are filtering: blue with an × to clear; Places and People add a "Showing n of m · filters · “text” · Clear" line; a kept search glows once when you come back to it | Nothing to run |
 
 ---
 

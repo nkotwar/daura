@@ -35,6 +35,7 @@ function show(tab) {
   S.tab = tab; renderTabs(true); remember(); if (typeof updateFab === 'function') updateFab();
   window.scrollTo(0, fresh ? 0 : (S.scrollAt[tab] || 0));
   VIEWS[tab]();
+  if (!fresh) setTimeout(() => glowSearch(tv), 450);   // an old search still applied: one soft glow
 }
 
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) show(b.dataset.tab); });

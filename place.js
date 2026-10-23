@@ -33,14 +33,17 @@ async function drawPlaces(el) {
   let f = S.cache.placeF || 'all'; if (f !== 'all' && !sets[f]) f = 'all';
   const count = k => k === 'all' ? list.length : sets[k].size;
   const pills = PLACE_PILLS.concat(sets.dup ? [['dup', 'Duplicates']] : []);
-  el.innerHTML = `<div class="row" style="margin-bottom:10px;gap:8px"><div class="search grow" style="margin:0">${ICON.search}<input class="input" id="eq" type="search" placeholder="Search places" value="${esc(S.cache.placeQ || '')}" autocomplete="off"></div>
+  el.innerHTML = `<div class="row" style="margin-bottom:10px;gap:8px">${searchHTML('eq', 'Search places', S.cache.placeQ || '', 'grow')}
       <button class="btn soft" id="addp" style="flex:none;min-height:44px;padding:0 14px">+ Add place</button></div>
     <div class="chips wrap" id="pf">${pills.map(([k, l]) => `<button class="chip ${f === k ? 'on' : ''} ${k === 'overdue' && count(k) && f !== k ? 'hot' : ''}" data-pf="${k}">${l}<b>${count(k)}</b></button>`).join('')}</div>
+    <div class="hint sline" id="eqs" hidden></div>
     <div class="list" id="el"></div>`;
   const draw = () => {
     const t = $('#eq').value.trim().toLowerCase(); S.cache.placeQ = t;
+    const base = (f === 'dup' ? dups : list).filter(e => f === 'all' || sets[f].has(e.id));
     let rs = (f === 'dup' ? dups : list).filter(e => (f === 'all' || sets[f].has(e.id)) && (!t || (e.name + ' ' + (e.area || '') + ' ' + e.type + ' ' + (e.address || '')).toLowerCase().includes(t)));
     if (f === 'overdue') rs.sort((a, b) => (info.get(b.id)?.late || 0) - (info.get(a.id)?.late || 0));
+    searchSummary($('#eqs'), { shown: rs.length, of: base.length, noun: 'places', filters: [f !== 'all' && (pills.find(x => x[0] === f) || [])[1]], q: $('#eq').value.trim(), onClear: () => { $('#eq').value = ''; $('#eq').dispatchEvent(new Event('input')); } });
     const more = rs.length > 150 ? rs.length - 150 : 0; rs = rs.slice(0, 150);
     $('#el').innerHTML = rs.length ? rs.map(e => `<button class="item" data-e="${e.id}"><div class="grow"><div class="t">${esc(e.name)}</div>
         <div class="s">${esc(e.type)}${e.area ? ' · ' + esc(e.area) : ''}</div>${e.is_duplicate ? (e.duplicate_note ? `<div class="s">${esc(e.duplicate_note)}</div>` : '') : placeLine(e, info.get(e.id))}</div>${e.is_duplicate ? '<span class="badge">Duplicate</span>' : placeBadge(e, info.get(e.id))}</button>`).join('')
@@ -48,7 +51,7 @@ async function drawPlaces(el) {
       : emptyState(ICON.search, t ? 'No place by that name' : 'Nothing here', t ? 'Check the spelling, or add it as a new place with the button below.' : 'No places in this group right now.');
   };
   draw();
-  $('#eq').oninput = draw;
+  $('#eq').oninput = draw; bindSearch($('#eq'), draw);
   $$('[data-pf]', el).forEach(b => b.onclick = () => { S.cache.placeF = b.dataset.pf; drawPlaces(el); });
   $('#el').onclick = ev => { const b = ev.target.closest('[data-e]'); if (b) openPlace(get('entities', b.dataset.e)); };
   $('#addp').onclick = () => openNewPlace($('#eq').value.trim());
